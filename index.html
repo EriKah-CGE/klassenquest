@@ -1088,9 +1088,10 @@ function push(){
   saveLocal();
   if(!ref||remote)return;
   syncDot('spin');
-  // Use update() to prevent full overwrite. Each key updates independently.
-  // For arrays/objects we need to send them as full replacements but only the changed keys.
-  ref.update(S).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  // Send everything EXCEPT students (which is managed by transactions)
+  const update={...S};
+  delete update.students;
+  ref.update(update).then(()=>syncDot('on')).catch(()=>syncDot('off'));
 }
 function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className='sync '+s}
 function saveLocal(){try{localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
@@ -1238,6 +1239,9 @@ function goPage(name){
   document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='pg-'+name));
   document.querySelectorAll('.nb').forEach(e=>e.classList.toggle('on',e.dataset.pg===name));
   if(name==='log')renderLog();
+  if(name==='students')renderStudents();
+  if(name==='bank')renderRewards();
+  if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
   window.scrollTo(0,0);
 }
 
@@ -1913,15 +1917,41 @@ function confirmLife(){
   const s=S.students.find(x=>x.id===pendingLif.id);
   if(!s||s.lives<=0){closeReasonModal();return}
   const reason=(document.getElementById('reason-ta').value||'').trim()||'Kein Grund';
-  s.lives--;
+  const newLives=s.lives-1;
+  const zero=newLives<=0;
   const dk='d'+S.currentDay;
-  if(!s.reasons)s.reasons={};
-  if(!s.reasons[dk])s.reasons[dk]=[];
-  s.reasons[dk].push({reason,teacher:U.name,time:Date.now()});
-  const zero=s.lives<=0;
-  addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-  closeReasonModal();push();renderStudents();
-  if(zero)triggerAlert(s);else toast(`${s.name}: ${s.lives} übrig`);
+  const reasonEntry={reason,teacher:U.name,time:Date.now()};
+
+  if(ref){
+    syncDot('spin');
+    // Atomic update: change ONLY this student's lives + reasons in Firebase
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===pendingLif.id);
+      if(idx===-1)return current;
+      const stu=arr[idx];
+      stu.lives=Math.max(0,(stu.lives||0)-1);
+      if(!stu.reasons)stu.reasons={};
+      if(!stu.reasons[dk])stu.reasons[dk]=[];
+      stu.reasons[dk].push(reasonEntry);
+      arr[idx]=stu;
+      return arr;
+    }).then(()=>{
+      syncDot('on');
+      addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
+    }).catch(()=>syncDot('off'));
+  } else {
+    s.lives=newLives;
+    if(!s.reasons)s.reasons={};
+    if(!s.reasons[dk])s.reasons[dk]=[];
+    s.reasons[dk].push(reasonEntry);
+    addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
+    saveLocal();
+    renderStudents();
+  }
+
+  closeReasonModal();
+  if(zero)triggerAlert(s);else toast(`${s.name}: ${newLives} übrig`);
 }
 function triggerAlert(s){
   document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
@@ -1932,8 +1962,39 @@ function triggerAlert(s){
   playAlarm();
 }
 function hideNotif(){document.getElementById('notif').classList.remove('on')}
-function restoreOne(id){const s=S.students.find(x=>x.id===id);if(s){s.lives=MAX_LIVES;push();renderStudents();toast(`${s.name}: zurück`)}}
-function restoreAll(){if(!confirm('Alle Leben zurücksetzen?'))return;S.students.forEach(s=>s.lives=MAX_LIVES);push();renderStudents();toast('Alle zurückgesetzt')}
+function restoreOne(id){
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===id);
+      if(idx===-1)return current;
+      arr[idx].lives=MAX_LIVES;
+      return arr;
+    }).then(()=>{
+      syncDot('on');
+      const s=S.students.find(x=>x.id===id);
+      if(s) toast(`${s.name}: zurück`);
+    }).catch(()=>syncDot('off'));
+  } else {
+    const s=S.students.find(x=>x.id===id);
+    if(s){s.lives=MAX_LIVES;saveLocal();renderStudents();toast(`${s.name}: zurück`)}
+  }
+}
+function restoreAll(){
+  if(!confirm('Alle Leben zurücksetzen?'))return;
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      arr.forEach(s=>{if(s)s.lives=MAX_LIVES});
+      return arr;
+    }).then(()=>{syncDot('on');toast('Alle zurückgesetzt')}).catch(()=>syncDot('off'));
+  } else {
+    S.students.forEach(s=>s.lives=MAX_LIVES);
+    saveLocal();renderStudents();toast('Alle zurückgesetzt');
+  }
+}
 
 function playAlarm(){
   try{const ctx=new (window.AudioContext||window.webkitAudioContext)();const t=ctx.currentTime;
