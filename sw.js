@@ -1,4 +1,4 @@
-const CACHE = 'klassenquest-v2';
+const CACHE = 'klassenquest-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', e => {
@@ -10,7 +10,8 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('firebase') || e.request.url.includes('googleapis')) {
+  const url = e.request.url;
+  if (url.includes('firebase') || url.includes('googleapis') || url.includes('config.js')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
@@ -28,7 +29,6 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Handle push notifications (for future server-side push)
 self.addEventListener('push', e => {
   const data = e.data ? e.data.json() : { title: 'Klassenquest', body: 'Benachrichtigung' };
   e.waitUntil(
