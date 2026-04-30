@@ -1922,33 +1922,33 @@ function confirmLife(){
   const dk='d'+S.currentDay;
   const reasonEntry={reason,teacher:U.name,time:Date.now()};
 
+  // Update local state IMMEDIATELY so user sees the change
+  s.lives=newLives;
+  if(!s.reasons)s.reasons={};
+  if(!s.reasons[dk])s.reasons[dk]=[];
+  s.reasons[dk].push(reasonEntry);
+
+  // Render the change so user sees instant feedback
+  saveLocal();
+  renderStudents();
+
+  // Then push to Firebase via transaction (atomic)
   if(ref){
     syncDot('spin');
-    // Atomic update: change ONLY this student's lives + reasons in Firebase
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       const idx=arr.findIndex(x=>x&&x.id===pendingLif.id);
       if(idx===-1)return current;
-      const stu=arr[idx];
-      stu.lives=Math.max(0,(stu.lives||0)-1);
-      if(!stu.reasons)stu.reasons={};
-      if(!stu.reasons[dk])stu.reasons[dk]=[];
-      stu.reasons[dk].push(reasonEntry);
-      arr[idx]=stu;
+      arr[idx].lives=Math.max(0,(arr[idx].lives||0)-1);
+      if(!arr[idx].reasons)arr[idx].reasons={};
+      if(!arr[idx].reasons[dk])arr[idx].reasons[dk]=[];
+      arr[idx].reasons[dk].push(reasonEntry);
       return arr;
-    }).then(()=>{
-      syncDot('on');
-      addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-    }).catch(()=>syncDot('off'));
-  } else {
-    s.lives=newLives;
-    if(!s.reasons)s.reasons={};
-    if(!s.reasons[dk])s.reasons[dk]=[];
-    s.reasons[dk].push(reasonEntry);
-    addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-    saveLocal();
-    renderStudents();
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
+
+  // Always log
+  addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
 
   closeReasonModal();
   if(zero)triggerAlert(s);else toast(`${s.name}: ${newLives} übrig`);
@@ -1963,37 +1963,36 @@ function triggerAlert(s){
 }
 function hideNotif(){document.getElementById('notif').classList.remove('on')}
 function restoreOne(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  s.lives=MAX_LIVES;
+  saveLocal();
+  renderStudents();
   if(ref){
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       const idx=arr.findIndex(x=>x&&x.id===id);
-      if(idx===-1)return current;
-      arr[idx].lives=MAX_LIVES;
+      if(idx!==-1)arr[idx].lives=MAX_LIVES;
       return arr;
-    }).then(()=>{
-      syncDot('on');
-      const s=S.students.find(x=>x.id===id);
-      if(s) toast(`${s.name}: zurück`);
-    }).catch(()=>syncDot('off'));
-  } else {
-    const s=S.students.find(x=>x.id===id);
-    if(s){s.lives=MAX_LIVES;saveLocal();renderStudents();toast(`${s.name}: zurück`)}
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
+  toast(`${s.name}: zurück`);
 }
 function restoreAll(){
   if(!confirm('Alle Leben zurücksetzen?'))return;
+  S.students.forEach(s=>s.lives=MAX_LIVES);
+  saveLocal();
+  renderStudents();
   if(ref){
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       arr.forEach(s=>{if(s)s.lives=MAX_LIVES});
       return arr;
-    }).then(()=>{syncDot('on');toast('Alle zurückgesetzt')}).catch(()=>syncDot('off'));
-  } else {
-    S.students.forEach(s=>s.lives=MAX_LIVES);
-    saveLocal();renderStudents();toast('Alle zurückgesetzt');
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
+  toast('Alle zurückgesetzt');
 }
 
 function playAlarm(){
@@ -2055,8 +2054,31 @@ function assignReward(id){
 
 /* LOG */
 function addLog(e){
-  S.log.unshift({id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e});
+  const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
+  S.log.unshift(entry);
   if(S.log.length>500)S.log.length=500;
+
+  if(ref){
+    // Atomic: prepend to Firebase log without overwriting other changes
+    ref.child('log').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      arr.unshift(entry);
+      if(arr.length>500)arr.length=500;
+      return arr;
+    }).catch(()=>{});
+  } else {
+    saveLocal();
+  }
+}
+function clearLog(){
+  if(!confirm('Log leeren?'))return;
+  S.log=[];
+  if(ref){
+    ref.child('log').set([]).catch(()=>{});
+  } else {
+    saveLocal();
+  }
+  renderLog();
 }
 function setF(f){
   logFilter=f;
@@ -2082,7 +2104,7 @@ function renderLog(){
       </div></div>`;
   }).join('');
 }
-function clearLog(){if(!confirm('Log leeren?'))return;S.log=[];push();renderLog()}
+
 
 /* CONFETTI */
 function confetti(n=22){
