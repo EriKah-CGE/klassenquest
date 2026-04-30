@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
 <title>Klassenquest</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+<script src="config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
@@ -982,29 +983,18 @@ body.admin .nb.adm{display:flex}
 <div class="toast" id="toast"></div>
 
 <script>
-/* ════════════════════════════════════════════════════════════════
-   ★★★ HIER BITTE EINTRAGEN ★★★
-   ════════════════════════════════════════════════════════════════
-   1. FIREBASE_CONFIG: Aus Firebase Console kopieren
-   2. ADMIN_PW: Eigenes Admin-Passwort setzen
-   ════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   KONFIGURATION wird aus config.js geladen
+   (Du musst nur EINMAL config.js anlegen,
+    diese Datei wird bei Updates nie überschrieben)
+   ═══════════════════════════════════════════════ */
 
-  const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBnEyE2dqCh9YFl43wZIOrqaugd6-VUJ3k",
-  authDomain: "klassenquest.firebaseapp.com",
-  databaseURL: "https://klassenquest-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "klassenquest",
-  storageBucket: "klassenquest.firebasestorage.app",
-  messagingSenderId: "833383889737",
-  appId: "1:833383889737:web:3bcdc5d5eab177822a7898"
-};
+// Defaults falls config.js nicht geladen wurde
+window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
+window.ADMIN_PW = window.ADMIN_PW || 'klasse5a';
 
-const ADMIN_PW = 'klasse5a';   // ← HIER eigenes Passwort eintragen
-
-/* ════════════════════════════════════════════════════════════════
-   Ab hier nichts mehr ändern!
-   ════════════════════════════════════════════════════════════════ */
-
+const FIREBASE_CONFIG = window.FIREBASE_CONFIG;
+const ADMIN_PW = window.ADMIN_PW;
 const MAX_LIVES=3;
 const USE_FB=!!FIREBASE_CONFIG.databaseURL;
 
@@ -1079,7 +1069,15 @@ function initFB(){
     syncDot('spin');
     ref.on('value',snap=>{
       const d=snap.val();
-      if(d){remote=true;Object.assign(S,d);fixState();renderAll();remote=false;}
+      if(d){
+        remote=true;
+        // Replace state completely with remote (Firebase is single source of truth)
+        Object.keys(S).forEach(k=>delete S[k]);
+        Object.assign(S,d);
+        fixState();
+        renderAll();
+        remote=false;
+      }
       syncDot('on');
       const l=document.getElementById('sync-lbl');if(l)l.textContent='Firebase · Sync aktiv';
     });
@@ -1090,7 +1088,9 @@ function push(){
   saveLocal();
   if(!ref||remote)return;
   syncDot('spin');
-  ref.set(S).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  // Use update() to prevent full overwrite. Each key updates independently.
+  // For arrays/objects we need to send them as full replacements but only the changed keys.
+  ref.update(S).then(()=>syncDot('on')).catch(()=>syncDot('off'));
 }
 function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className='sync '+s}
 function saveLocal(){try{localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
@@ -1817,13 +1817,53 @@ function addStu(){
   if(U.role!=='admin'){toast('Nur Klassenlehrer:innen');return}
   const inp=document.getElementById('stu-inp');
   const name=inp.value.trim();if(!name)return;
-  S.students.push({id:'s'+Date.now(),name,lives:MAX_LIVES,reasons:{}});
-  inp.value='';push();renderStudents();toast('Hinzugefügt');
+  const newStudent={id:'s'+Date.now(),name,lives:MAX_LIVES,reasons:{}};
+
+  if(ref){
+    // Use transaction to safely append without overwriting other changes
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      arr.push(newStudent);
+      return arr;
+    }).then(()=>{
+      syncDot('on');
+      // The 'value' listener will update S.students automatically
+    }).catch(()=>{
+      syncDot('off');
+      // Fallback: local-only
+      S.students.push(newStudent);
+      saveLocal();
+      renderStudents();
+    });
+  } else {
+    S.students.push(newStudent);
+    saveLocal();
+    renderStudents();
+  }
+  inp.value='';
+  toast('Hinzugefügt');
 }
 function removeStu(id){
   if(U.role!=='admin')return;
   const s=S.students.find(x=>x.id===id);if(!s||!confirm(`${s.name} löschen?`))return;
-  S.students=S.students.filter(x=>x.id!==id);push();renderStudents();
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      return arr.filter(x=>x.id!==id);
+    }).then(()=>syncDot('on')).catch(()=>{
+      syncDot('off');
+      S.students=S.students.filter(x=>x.id!==id);
+      saveLocal();
+      renderStudents();
+    });
+  } else {
+    S.students=S.students.filter(x=>x.id!==id);
+    saveLocal();
+    renderStudents();
+  }
 }
 function renderStudents(){
   const el=document.getElementById('stu-list');
