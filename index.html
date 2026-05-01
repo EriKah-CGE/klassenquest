@@ -137,6 +137,8 @@ input,textarea{font-family:inherit;user-select:text;-webkit-user-select:text}
 .nb.on{color:var(--gold)}
 .nb.adm{display:none}
 body.admin .nb.adm{display:flex}
+.admin-only{display:none}
+body.admin .admin-only{display:block}
 
 /* PAGES */
 .page{display:none;padding:14px 14px;max-width:580px;margin:0 auto}
@@ -863,7 +865,27 @@ body.admin .nb.adm{display:flex}
   <!-- PAGE: SETTINGS -->
   <div class="page" id="pg-settings">
     <div class="page-title">Einstellungen</div>
+
+    <!-- Profil – für ALLE -->
     <div class="sg">
+      <div class="sg-title">Profil</div>
+      <div class="sg-row">
+        <div><div class="sg-lbl" id="prof-name">–</div><div class="sg-hint" id="prof-role">–</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">Abmelden</button>
+      </div>
+    </div>
+
+    <!-- Benachrichtigungen – für ALLE -->
+    <div class="sg">
+      <div class="sg-title">Benachrichtigungen</div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div><div class="sg-lbl">Push-Benachrichtigungen</div><div class="sg-hint" id="push-hint">Noch nicht aktiviert.</div></div>
+        <button class="btn btn-gold btn-sm" id="push-btn" onclick="askPush()">🔔 Aktivieren</button>
+      </div>
+    </div>
+
+    <!-- Tag & Spiel – nur Admin -->
+    <div class="sg admin-only">
       <div class="sg-title">Tag & Spiel</div>
       <div class="sg-row">
         <div><div class="sg-lbl">Nächster Tag</div><div class="sg-hint">Leben zurücksetzen, Bosse prüfen</div></div>
@@ -874,24 +896,20 @@ body.admin .nb.adm{display:flex}
         <button class="btn btn-red btn-sm" onclick="resetGame()">Reset</button>
       </div>
     </div>
-    <div class="sg">
-      <div class="sg-title">Benachrichtigungen</div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div><div class="sg-lbl">Push-Benachrichtigungen</div><div class="sg-hint" id="push-hint">Noch nicht aktiviert.</div></div>
-        <button class="btn btn-gold btn-sm" id="push-btn" onclick="askPush()">🔔 Aktivieren</button>
-      </div>
-    </div>
+
+    <!-- Sync – für ALLE (Info) -->
     <div class="sg">
       <div class="sg-title">Sync</div>
       <div class="sg-row">
-        <div><div class="sg-lbl" id="sync-lbl">Lokal</div><div class="sg-hint">Für Sync <code>FIREBASE_CONFIG</code> eintragen.</div></div>
+        <div><div class="sg-lbl" id="sync-lbl">Lokal</div><div class="sg-hint">Verbindung zur Firebase-Datenbank</div></div>
       </div>
     </div>
+
+    <!-- Über die App -->
     <div class="sg">
-      <div class="sg-title">Profil</div>
+      <div class="sg-title">Über</div>
       <div class="sg-row">
-        <div><div class="sg-lbl" id="prof-name">–</div><div class="sg-hint" id="prof-role">–</div></div>
-        <button class="btn btn-ghost btn-sm" onclick="logout()">Abmelden</button>
+        <div><div class="sg-lbl">Klassenquest v3</div><div class="sg-hint">Verhaltensreise für Klassen</div></div>
       </div>
     </div>
   </div>
@@ -913,7 +931,7 @@ body.admin .nb.adm{display:flex}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Log
     </button>
-    <button class="nb adm" data-pg="settings" onclick="goPage('settings')">
+    <button class="nb" data-pg="settings" onclick="goPage('settings')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Mehr
     </button>
@@ -1961,37 +1979,35 @@ function confirmLife(){
   const zero=newLives<=0;
   const dk='d'+S.currentDay;
   const reasonEntry={reason,teacher:U.name,time:Date.now()};
+  const studentId=pendingLif.id;
 
-  if(ref){
-    syncDot('spin');
-    // Atomic update: change ONLY this student's lives + reasons in Firebase
-    ref.child('students').transaction(current=>{
-      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arr.findIndex(x=>x&&x.id===pendingLif.id);
-      if(idx===-1)return current;
-      const stu=arr[idx];
-      stu.lives=Math.max(0,(stu.lives||0)-1);
-      if(!stu.reasons)stu.reasons={};
-      if(!stu.reasons[dk])stu.reasons[dk]=[];
-      stu.reasons[dk].push(reasonEntry);
-      arr[idx]=stu;
-      return arr;
-    }).then(()=>{
-      syncDot('on');
-      addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-    }).catch(()=>syncDot('off'));
-  } else {
-    s.lives=newLives;
-    if(!s.reasons)s.reasons={};
-    if(!s.reasons[dk])s.reasons[dk]=[];
-    s.reasons[dk].push(reasonEntry);
-    addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-    saveLocal();
-    renderStudents();
-  }
+  // Update local immediately
+  s.lives=newLives;
+  if(!s.reasons)s.reasons={};
+  if(!s.reasons[dk])s.reasons[dk]=[];
+  s.reasons[dk].push(reasonEntry);
+  saveLocal();
+  renderStudents();
 
   closeReasonModal();
+  addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
+
   if(zero)triggerAlert(s);else toast(`${s.name}: ${newLives} übrig`);
+
+  // Sync to Firebase
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===studentId);
+      if(idx===-1)return current;
+      arr[idx].lives=Math.max(0,(arr[idx].lives||0)-1);
+      if(!arr[idx].reasons)arr[idx].reasons={};
+      if(!arr[idx].reasons[dk])arr[idx].reasons[dk]=[];
+      arr[idx].reasons[dk].push(reasonEntry);
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
 }
 function triggerAlert(s){
   document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
