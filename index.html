@@ -816,6 +816,15 @@ body.admin .nb.adm{display:flex}
       <div class="page-title" style="margin:0">Klasse</div>
       <button class="btn btn-ghost btn-sm" onclick="restoreAll()">↺ Alle</button>
     </div>
+    <!-- User toolbar (visible to all roles) -->
+    <div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:10px 12px;margin-bottom:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:.85rem;color:var(--text)" id="prof-name-bar">–</div>
+        <div style="font-size:.7rem;color:var(--text-3);font-weight:700" id="prof-role-bar">–</div>
+      </div>
+      <button class="btn btn-gold btn-xs" id="push-btn-bar" onclick="askPush()">🔔 Push</button>
+      <button class="btn btn-ghost btn-xs" onclick="logout()">Abmelden</button>
+    </div>
     <div class="add-row hidden" id="stu-add-row">
       <input class="inp" id="stu-inp" placeholder="Name eingeben…" maxlength="30">
       <button class="btn btn-gold btn-sm" onclick="addStu()">+ Neu</button>
@@ -1070,11 +1079,38 @@ function initFB(){
     ref.on('value',snap=>{
       const d=snap.val();
       if(d){
+        // Detect "lives dropped to 0" by comparing old vs new students
+        const oldStudentsZero = new Set();
+        if(Array.isArray(S.students)){
+          S.students.forEach(s=>{ if(s && s.lives<=0) oldStudentsZero.add(s.id); });
+        }
+
         remote=true;
-        // Replace state completely with remote (Firebase is single source of truth)
         Object.keys(S).forEach(k=>delete S[k]);
         Object.assign(S,d);
         fixState();
+
+        // Find newly-zero students (were >0 before, are 0 now)
+        if(Array.isArray(S.students)){
+          S.students.forEach(s=>{
+            if(s && s.lives<=0 && !oldStudentsZero.has(s.id)){
+              // This student just dropped to 0 - alert this device
+              const lastReason=s.reasons && s.reasons['d'+S.currentDay] && s.reasons['d'+S.currentDay].slice(-1)[0];
+              const teacher=lastReason?lastReason.teacher:'unbekannt';
+              if(teacher!==U.name){ // Only alert if the action wasn't from this user
+                document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
+                document.getElementById('notif-s').textContent=`Gemeldet von ${teacher}`;
+                const b=document.getElementById('notif');
+                b.classList.add('on');
+                clearTimeout(window._nb);
+                window._nb=setTimeout(()=>b.classList.remove('on'),9000);
+                sendPush('⚠️ Alle Leben verloren!',`${s.name} – gemeldet von ${teacher}`,'kq-lives-'+s.id);
+                playAlarm();
+              }
+            }
+          });
+        }
+
         renderAll();
         remote=false;
       }
@@ -1100,13 +1136,19 @@ function loadLocal(){
   fixState();
 }
 function fixState(){
-  ['students','log','rewards','completedLevels','defeatedBosses'].forEach(k=>{if(!Array.isArray(S[k]))S[k]=[]});
+  // Firebase returns arrays as objects with numeric keys - convert them back
+  ['students','log','rewards','completedLevels','defeatedBosses'].forEach(k=>{
+    if(S[k] && typeof S[k]==='object' && !Array.isArray(S[k])){
+      // Convert {0:..., 1:..., 2:...} back to array
+      S[k]=Object.values(S[k]).filter(x=>x!=null);
+    }
+    if(!Array.isArray(S[k]))S[k]=[];
+  });
   ['checkedCriteria','dayRewards','bossProgress','customCriteria'].forEach(k=>{if(typeof S[k]!=='object'||!S[k])S[k]={}});
   if(typeof S.totalStars!=='number')S.totalStars=0;
   if(!S.currentLevel)S.currentLevel=1;
   if(!S.currentDay)S.currentDay=1;
   if(!S.currentLesson)S.currentLesson=1;
-  // Apply custom criteria to LEVELS
   applyCustomCriteria();
 }
 function applyCustomCriteria(){
@@ -1194,15 +1236,22 @@ async function askPush(){
   }
 }
 function sendPush(title,body,tag='kq'){
-  if(!pushOK||Notification.permission!=='granted')return;
+  if(!('Notification' in window) || Notification.permission!=='granted')return;
   try{
-    if(!isPreview&&'serviceWorker' in navigator){
+    if('serviceWorker' in navigator){
       navigator.serviceWorker.getRegistration().then(reg=>{
-        if(reg)reg.showNotification(title,{body,icon:'./icons/icon-192.png',tag,vibrate:[200,100,200]});
-        else new Notification(title,{body,icon:'./icons/icon-192.png',tag});
-      }).catch(()=>new Notification(title,{body,tag}));
-    }else{new Notification(title,{body,icon:'./icons/icon-192.png',tag});}
-  }catch(e){}
+        if(reg && reg.showNotification){
+          reg.showNotification(title,{body,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',tag,vibrate:[200,100,200],requireInteraction:true});
+        }else{
+          new Notification(title,{body,icon:'./icons/icon-192.png',tag,requireInteraction:true});
+        }
+      }).catch(()=>{
+        try{new Notification(title,{body,tag,requireInteraction:true});}catch(e){}
+      });
+    }else{
+      new Notification(title,{body,icon:'./icons/icon-192.png',tag,requireInteraction:true});
+    }
+  }catch(e){console.warn('sendPush failed:',e)}
 }
 
 /* LOGIN */
@@ -1227,6 +1276,8 @@ function applyUser(){
   document.getElementById('stu-add-row').classList.toggle('hidden',U.role!=='admin');
   const pn=document.getElementById('prof-name');if(pn)pn.textContent=U.name;
   const pr=document.getElementById('prof-role');if(pr)pr.textContent=U.role==='admin'?'Klassenlehrer:in (Admin)':'Fachlehrer:in';
+  const pnb=document.getElementById('prof-name-bar');if(pnb)pnb.textContent=U.name;
+  const prb=document.getElementById('prof-role-bar');if(prb)prb.textContent=U.role==='admin'?'👑 Admin':'⚔️ Fachlehrer:in';
 }
 function logout(){try{localStorage.removeItem('kq_u');}catch(e){}location.reload();}
 function tryAuto(){
@@ -1823,50 +1874,39 @@ function addStu(){
   const name=inp.value.trim();if(!name)return;
   const newStudent={id:'s'+Date.now(),name,lives:MAX_LIVES,reasons:{}};
 
+  // Update local state immediately
+  S.students.push(newStudent);
+  saveLocal();
+  renderStudents();
+  inp.value='';
+  toast('Hinzugefügt');
+
+  // Then sync to Firebase
   if(ref){
-    // Use transaction to safely append without overwriting other changes
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      arr.push(newStudent);
+      // Only add if not already there (in case listener already added it)
+      if(!arr.find(x=>x&&x.id===newStudent.id))arr.push(newStudent);
       return arr;
-    }).then(()=>{
-      syncDot('on');
-      // The 'value' listener will update S.students automatically
-    }).catch(()=>{
-      syncDot('off');
-      // Fallback: local-only
-      S.students.push(newStudent);
-      saveLocal();
-      renderStudents();
-    });
-  } else {
-    S.students.push(newStudent);
-    saveLocal();
-    renderStudents();
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
-  inp.value='';
-  toast('Hinzugefügt');
 }
 function removeStu(id){
   if(U.role!=='admin')return;
   const s=S.students.find(x=>x.id===id);if(!s||!confirm(`${s.name} löschen?`))return;
 
+  // Update local immediately
+  S.students=S.students.filter(x=>x.id!==id);
+  saveLocal();
+  renderStudents();
+
   if(ref){
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      return arr.filter(x=>x.id!==id);
-    }).then(()=>syncDot('on')).catch(()=>{
-      syncDot('off');
-      S.students=S.students.filter(x=>x.id!==id);
-      saveLocal();
-      renderStudents();
-    });
-  } else {
-    S.students=S.students.filter(x=>x.id!==id);
-    saveLocal();
-    renderStudents();
+      return arr.filter(x=>x&&x.id!==id);
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
 }
 function renderStudents(){
@@ -1922,33 +1962,33 @@ function confirmLife(){
   const dk='d'+S.currentDay;
   const reasonEntry={reason,teacher:U.name,time:Date.now()};
 
-  // Update local state IMMEDIATELY so user sees the change
-  s.lives=newLives;
-  if(!s.reasons)s.reasons={};
-  if(!s.reasons[dk])s.reasons[dk]=[];
-  s.reasons[dk].push(reasonEntry);
-
-  // Render the change so user sees instant feedback
-  saveLocal();
-  renderStudents();
-
-  // Then push to Firebase via transaction (atomic)
   if(ref){
     syncDot('spin');
+    // Atomic update: change ONLY this student's lives + reasons in Firebase
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       const idx=arr.findIndex(x=>x&&x.id===pendingLif.id);
       if(idx===-1)return current;
-      arr[idx].lives=Math.max(0,(arr[idx].lives||0)-1);
-      if(!arr[idx].reasons)arr[idx].reasons={};
-      if(!arr[idx].reasons[dk])arr[idx].reasons[dk]=[];
-      arr[idx].reasons[dk].push(reasonEntry);
+      const stu=arr[idx];
+      stu.lives=Math.max(0,(stu.lives||0)-1);
+      if(!stu.reasons)stu.reasons={};
+      if(!stu.reasons[dk])stu.reasons[dk]=[];
+      stu.reasons[dk].push(reasonEntry);
+      arr[idx]=stu;
       return arr;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+    }).then(()=>{
+      syncDot('on');
+      addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
+    }).catch(()=>syncDot('off'));
+  } else {
+    s.lives=newLives;
+    if(!s.reasons)s.reasons={};
+    if(!s.reasons[dk])s.reasons[dk]=[];
+    s.reasons[dk].push(reasonEntry);
+    addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
+    saveLocal();
+    renderStudents();
   }
-
-  // Always log
-  addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
 
   closeReasonModal();
   if(zero)triggerAlert(s);else toast(`${s.name}: ${newLives} übrig`);
@@ -1963,36 +2003,37 @@ function triggerAlert(s){
 }
 function hideNotif(){document.getElementById('notif').classList.remove('on')}
 function restoreOne(id){
-  const s=S.students.find(x=>x.id===id);
-  if(!s)return;
-  s.lives=MAX_LIVES;
-  saveLocal();
-  renderStudents();
   if(ref){
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       const idx=arr.findIndex(x=>x&&x.id===id);
-      if(idx!==-1)arr[idx].lives=MAX_LIVES;
+      if(idx===-1)return current;
+      arr[idx].lives=MAX_LIVES;
       return arr;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+    }).then(()=>{
+      syncDot('on');
+      const s=S.students.find(x=>x.id===id);
+      if(s) toast(`${s.name}: zurück`);
+    }).catch(()=>syncDot('off'));
+  } else {
+    const s=S.students.find(x=>x.id===id);
+    if(s){s.lives=MAX_LIVES;saveLocal();renderStudents();toast(`${s.name}: zurück`)}
   }
-  toast(`${s.name}: zurück`);
 }
 function restoreAll(){
   if(!confirm('Alle Leben zurücksetzen?'))return;
-  S.students.forEach(s=>s.lives=MAX_LIVES);
-  saveLocal();
-  renderStudents();
   if(ref){
     syncDot('spin');
     ref.child('students').transaction(current=>{
       const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
       arr.forEach(s=>{if(s)s.lives=MAX_LIVES});
       return arr;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+    }).then(()=>{syncDot('on');toast('Alle zurückgesetzt')}).catch(()=>syncDot('off'));
+  } else {
+    S.students.forEach(s=>s.lives=MAX_LIVES);
+    saveLocal();renderStudents();toast('Alle zurückgesetzt');
   }
-  toast('Alle zurückgesetzt');
 }
 
 function playAlarm(){
@@ -2054,31 +2095,8 @@ function assignReward(id){
 
 /* LOG */
 function addLog(e){
-  const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
-  S.log.unshift(entry);
+  S.log.unshift({id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e});
   if(S.log.length>500)S.log.length=500;
-
-  if(ref){
-    // Atomic: prepend to Firebase log without overwriting other changes
-    ref.child('log').transaction(current=>{
-      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      arr.unshift(entry);
-      if(arr.length>500)arr.length=500;
-      return arr;
-    }).catch(()=>{});
-  } else {
-    saveLocal();
-  }
-}
-function clearLog(){
-  if(!confirm('Log leeren?'))return;
-  S.log=[];
-  if(ref){
-    ref.child('log').set([]).catch(()=>{});
-  } else {
-    saveLocal();
-  }
-  renderLog();
 }
 function setF(f){
   logFilter=f;
@@ -2104,7 +2122,7 @@ function renderLog(){
       </div></div>`;
   }).join('');
 }
-
+function clearLog(){if(!confirm('Log leeren?'))return;S.log=[];push();renderLog()}
 
 /* CONFETTI */
 function confetti(n=22){
