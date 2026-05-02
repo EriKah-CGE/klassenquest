@@ -1138,6 +1138,7 @@ function initFB(){
     // SECONDARY listener: students only - for fast individual updates
     ref.child('students').on('value',snap=>{
       const d=snap.val();
+      console.log('[KQ] students listener fired. Got:', d);
       if(d!==null && d!==undefined){
         let arr=d;
         if(typeof arr==='object' && !Array.isArray(arr)){
@@ -1145,7 +1146,11 @@ function initFB(){
         }
         if(!Array.isArray(arr)) arr=[];
         S.students=arr;
-        // Force re-render of students area
+        console.log('[KQ] S.students set to:', S.students.length, 'students');
+        renderStudents();
+      } else {
+        // null = collection deleted
+        S.students=[];
         renderStudents();
       }
     });
@@ -1970,7 +1975,9 @@ function removeStu(id){
 }
 function renderStudents(){
   const el=document.getElementById('stu-list');
-  if(!S.students.length){
+  if(!el){console.log('[KQ] renderStudents: stu-list element not found');return}
+  console.log('[KQ] renderStudents called with', S.students?.length||0, 'students');
+  if(!S.students||!S.students.length){
     el.innerHTML=`<div class="empty"><span class="empty-icon">📜</span>${U.role==='admin'?'Schüler oben hinzufügen.':'Bitte die Klassenlehrkraft.'}</div>`;
     return;
   }
