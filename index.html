@@ -1094,10 +1094,11 @@ function initFB(){
     db=firebase.database();
     ref=db.ref('kq/v7');
     syncDot('spin');
+
+    // PRIMARY listener: full state
     ref.on('value',snap=>{
       const d=snap.val();
       if(d){
-        // Detect "lives dropped to 0" by comparing old vs new students
         const oldStudentsZero = new Set();
         if(Array.isArray(S.students)){
           S.students.forEach(s=>{ if(s && s.lives<=0) oldStudentsZero.add(s.id); });
@@ -1108,14 +1109,12 @@ function initFB(){
         Object.assign(S,d);
         fixState();
 
-        // Find newly-zero students (were >0 before, are 0 now)
         if(Array.isArray(S.students)){
           S.students.forEach(s=>{
             if(s && s.lives<=0 && !oldStudentsZero.has(s.id)){
-              // This student just dropped to 0 - alert this device
               const lastReason=s.reasons && s.reasons['d'+S.currentDay] && s.reasons['d'+S.currentDay].slice(-1)[0];
               const teacher=lastReason?lastReason.teacher:'unbekannt';
-              if(teacher!==U.name){ // Only alert if the action wasn't from this user
+              if(teacher!==U.name){
                 document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
                 document.getElementById('notif-s').textContent=`Gemeldet von ${teacher}`;
                 const b=document.getElementById('notif');
@@ -1135,6 +1134,36 @@ function initFB(){
       syncDot('on');
       const l=document.getElementById('sync-lbl');if(l)l.textContent='Firebase · Sync aktiv';
     });
+
+    // SECONDARY listener: students only - for fast individual updates
+    ref.child('students').on('value',snap=>{
+      const d=snap.val();
+      if(d!==null && d!==undefined){
+        let arr=d;
+        if(typeof arr==='object' && !Array.isArray(arr)){
+          arr=Object.values(arr).filter(x=>x!=null);
+        }
+        if(!Array.isArray(arr)) arr=[];
+        S.students=arr;
+        // Force re-render of students area
+        renderStudents();
+      }
+    });
+
+    // Log listener
+    ref.child('log').on('value',snap=>{
+      const d=snap.val();
+      if(d!==null && d!==undefined){
+        let arr=d;
+        if(typeof arr==='object' && !Array.isArray(arr)){
+          arr=Object.values(arr).filter(x=>x!=null);
+        }
+        if(!Array.isArray(arr)) arr=[];
+        S.log=arr;
+        renderLog();
+      }
+    });
+
     db.ref('.info/connected').on('value',s=>syncDot(s.val()?'on':'off'));
   }catch(e){console.error(e);syncDot('off');loadLocal();}
 }
@@ -1142,9 +1171,21 @@ function push(){
   saveLocal();
   if(!ref||remote)return;
   syncDot('spin');
-  // Send everything EXCEPT students (which is managed by transactions)
-  const update={...S};
-  delete update.students;
+  // Only sync simple state - students and log are handled by atomic transactions
+  const update={
+    totalStars:S.totalStars,
+    currentLevel:S.currentLevel,
+    currentDay:S.currentDay,
+    currentLesson:S.currentLesson,
+    completedLevels:S.completedLevels||[],
+    checkedCriteria:S.checkedCriteria||{},
+    rewards:S.rewards||[],
+    dayRewards:S.dayRewards||{},
+    bossProgress:S.bossProgress||{},
+    defeatedBosses:S.defeatedBosses||[],
+    activeBossDay:S.activeBossDay||null,
+    customCriteria:S.customCriteria||{},
+  };
   ref.update(update).then(()=>syncDot('on')).catch(()=>syncDot('off'));
 }
 function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className='sync '+s}
