@@ -1362,15 +1362,15 @@ function goPage(name){
 
 /* RENDER */
 function renderAll(){
-  document.getElementById('hud-stars').textContent=S.totalStars;
-  document.getElementById('hud-day').textContent=S.currentDay;
-  document.getElementById('day-big').textContent=S.currentDay;
+  const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
+  const hd=document.getElementById('hud-day'); if(hd) hd.textContent=S.currentDay;
+  const db=document.getElementById('day-big'); if(db) db.textContent=S.currentDay;
   const lb=document.getElementById('lesson-big'); if(lb) lb.textContent=S.currentLesson;
-  renderMap();
-  renderCurInfo();
-  renderDayTracker();
-  renderStudents();
-  renderRewards();
+  try{renderMap();}catch(e){console.warn('renderMap failed:',e)}
+  try{renderCurInfo();}catch(e){console.warn('renderCurInfo failed:',e)}
+  try{renderDayTracker();}catch(e){console.warn('renderDayTracker failed:',e)}
+  try{renderStudents();}catch(e){console.warn('renderStudents failed:',e)}
+  try{renderRewards();}catch(e){console.warn('renderRewards failed:',e)}
 }
 
 /* MAP — clean snake layout
@@ -1387,6 +1387,7 @@ function bossIdx(d){return Math.floor((d-1)/5)%BOSSES.length}
 
 function renderMap(){
   const map=document.getElementById('map');
+  if(!map)return;
   const bossOn=!!S.activeBossDay;
 
   const ACT_NAMES=['I · Die Heimat','II · Das Tal','III · Die Wildnis','IV · Das Königreich'];
@@ -1526,6 +1527,7 @@ function avatarSVG(){
 
 function renderCurInfo(){
   const el=document.getElementById('cur-info');
+  if(!el)return;
   if(S.activeBossDay){
     const b=BOSSES[bossIdx(S.activeBossDay)];
     const prog=(S.bossProgress[bossIdx(S.activeBossDay)]||[]).length;
@@ -1569,6 +1571,7 @@ function renderCurInfo(){
 /* DAY TRACKER */
 function renderDayTracker(){
   const el=document.getElementById('dt-pills');
+  if(!el)return;
   let h='';
   for(let d=1;d<=30;d++){
     let c='dp';
@@ -2127,8 +2130,9 @@ function delReward(id){
 }
 function toggleUsed(id){const r=S.rewards.find(x=>x.id===id);if(r){r.used=!r.used;push();renderRewards()}}
 function renderRewards(){
-  document.getElementById('rw-count').textContent=S.rewards.length;
+  const cnt=document.getElementById('rw-count'); if(cnt) cnt.textContent=S.rewards.length;
   const el=document.getElementById('rw-list');
+  if(!el)return;
   if(!S.rewards.length){el.innerHTML=`<div class="empty"><span class="empty-icon">💎</span>Noch keine Belohnungen.</div>`;return}
   el.innerHTML=S.rewards.map(r=>`
     <div class="rw-item${r.used?' used':''}">
@@ -2168,12 +2172,13 @@ function setF(f){
   renderLog();
 }
 function renderLog(){
+  const el=document.getElementById('log-list');
+  if(!el)return;
   let entries=S.log||[];
   if(logFilter==='sev')entries=entries.filter(e=>e.severe||e.type==='severe');
   else if(logFilter==='life')entries=entries.filter(e=>e.type==='life'||e.type==='severe');
   else if(logFilter==='stars')entries=entries.filter(e=>['stars','levelup','boss'].includes(e.type));
   else if(logFilter==='today'){const t=new Date();t.setHours(0,0,0,0);entries=entries.filter(e=>e.time>=t.getTime())}
-  const el=document.getElementById('log-list');
   if(!entries.length){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Keine Einträge.</div>`;return}
   el.innerHTML=entries.map(e=>{
     const t=new Date(e.time).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
