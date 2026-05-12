@@ -1765,37 +1765,49 @@ function lessonTypeLabel(){
 }
 function getCritDone(lvlId){
   const lk=lessonKey();
-  const arr=(S.checkedCriteria[lk]&&S.checkedCriteria[lk][lvlId])||[];
+  let arr=(S.checkedCriteria[lk]&&S.checkedCriteria[lk][lvlId])||[];
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
   return new Set(arr);
 }
 
 function tickCrit(idx){
-  const lvl=LEVELS.find(l=>l.id===selLvl);
-  if(!lvl)return;
-  const lk=lessonKey();
-  if(!S.checkedCriteria[lk])S.checkedCriteria[lk]={};
-  if(!S.checkedCriteria[lk][selLvl])S.checkedCriteria[lk][selLvl]=[];
-  const arr=S.checkedCriteria[lk][selLvl];
-  const pos=arr.indexOf(idx);
+  try{
+    const lvl=LEVELS.find(l=>l.id===selLvl);
+    if(!lvl){console.warn('[KQ] tickCrit: no level for selLvl=',selLvl);return}
+    const lk=lessonKey();
+    if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object')S.checkedCriteria[lk]={};
+    // Ensure array – Firebase may have stored it as object {0:..., 1:...}
+    let arr=S.checkedCriteria[lk][selLvl];
+    if(!Array.isArray(arr)){
+      arr = (arr && typeof arr==='object') ? Object.values(arr).filter(x=>x!=null) : [];
+    }
+    const pos=arr.indexOf(idx);
 
-  if(pos===-1){
-    arr.push(idx);
-    S.totalStars++;
-    addLog({type:'stars',icon:'⭐',text:`+1 Stern · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name} (${lessonLabel()})`});
-    miniConfetti();
-    toast('⭐ +1 Stern!');
-  }else{
-    arr.splice(pos,1);
-    S.totalStars=Math.max(0,S.totalStars-1);
-    addLog({type:'stars',icon:'↺',text:`Stern zurückgenommen · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name}`});
-    toast('Rückgängig');
+    if(pos===-1){
+      arr.push(idx);
+      S.totalStars++;
+      addLog({type:'stars',icon:'⭐',text:`+1 Stern · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name} (${lessonLabel()})`});
+      miniConfetti();
+      toast('⭐ +1 Stern!');
+    }else{
+      arr.splice(pos,1);
+      S.totalStars=Math.max(0,S.totalStars-1);
+      addLog({type:'stars',icon:'↺',text:`Stern zurückgenommen · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name}`});
+      toast('Rückgängig');
+    }
+    S.checkedCriteria[lk][selLvl]=arr;
+    push();
+    const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
+    try{buildLevelSheet();}catch(e){console.warn('[KQ] buildLevelSheet failed:',e)}
+    try{renderMap();}catch(e){console.warn('[KQ] renderMap failed:',e)}
+    try{renderCurInfo();}catch(e){console.warn('[KQ] renderCurInfo failed:',e)}
+    if(checkLevelUp())closeSheet();
+  }catch(err){
+    console.error('[KQ] tickCrit failed:',err);
+    toast('Fehler beim Stern vergeben');
   }
-  S.checkedCriteria[lk][selLvl]=[...arr];
-  push();
-  document.getElementById('hud-stars').textContent=S.totalStars;
-  buildLevelSheet();
-  renderMap(); renderCurInfo();
-  if(checkLevelUp())closeSheet();
 }
 
 function checkLevelUp(){
