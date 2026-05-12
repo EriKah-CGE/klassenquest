@@ -1655,7 +1655,8 @@ function buildLevelSheet(){
   const st=lvlSt(selLvl);
   const dk='d'+S.currentDay;
   const done=getCritDone(selLvl);
-  const canTick=st==='active';
+  // Allow marking on active level (regular) AND completed levels (still useful for retrospective)
+  const canTick = st !== 'locked';
   const reward=getDayReward();
 
   document.getElementById('sh-body').innerHTML=`
@@ -1681,7 +1682,7 @@ function buildLevelSheet(){
         const isD=done.has(i);
         const dis=!canTick;
         return `<div class="crit-item${isD?' done':''}${dis?' disabled':''}"
-          ${(!dis)?`onclick="tickCrit(${i})"`:''}>
+          onclick="${!dis?`tickCrit(${i})`:''}">
           <div class="crit-box">
             <svg class="crit-svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
