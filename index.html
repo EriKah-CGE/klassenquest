@@ -751,10 +751,8 @@ body.admin .admin-only{display:block}
     </div>
     <label class="lbl">Dein Name</label>
     <input class="inp mb10" id="l-name" placeholder="z. B. Frau Müller" autocomplete="name">
-    <div id="pw-wrap" class="hidden">
-      <label class="lbl">Admin-Passwort</label>
-      <input type="password" class="inp mb10" id="l-pw" autocomplete="current-password">
-    </div>
+    <label class="lbl" id="pw-label">Lehrer-Passwort</label>
+    <input type="password" class="inp mb10" id="l-pw" autocomplete="current-password">
     <div class="login-err" id="l-err"></div>
     <button class="btn btn-gold btn-block" onclick="doLogin()">✦ Eintreten ✦</button>
   </div>
@@ -881,6 +879,23 @@ body.admin .admin-only{display:block}
       <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
         <div><div class="sg-lbl">Push-Benachrichtigungen</div><div class="sg-hint" id="push-hint">Noch nicht aktiviert.</div></div>
         <button class="btn btn-gold btn-sm" id="push-btn" onclick="askPush()">🔔 Aktivieren</button>
+      </div>
+    </div>
+
+    <!-- Passwörter – nur Admin -->
+    <div class="sg admin-only">
+      <div class="sg-title">Passwörter</div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Lehrer-Passwort</div><div class="sg-hint">Für alle Fachlehrer:innen</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="changeTeacherPw()">Ändern</button>
+      </div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Admin-Passwort</div><div class="sg-hint">Für Klassenlehrer:in (Admin-Rechte)</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="changeAdminPw()">Ändern</button>
+      </div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Auf Standard zurücksetzen</div><div class="sg-hint">Passwörter aus config.js wieder aktivieren</div></div>
+        <button class="btn btn-red btn-sm" onclick="resetPasswords()">Reset</button>
       </div>
     </div>
 
@@ -1030,9 +1045,11 @@ body.admin .admin-only{display:block}
 // Defaults falls config.js nicht geladen wurde
 window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
 window.ADMIN_PW = window.ADMIN_PW || 'klasse5a';
+window.TEACHER_PW = window.TEACHER_PW || 'lehrer5a';
 
 const FIREBASE_CONFIG = window.FIREBASE_CONFIG;
 const ADMIN_PW = window.ADMIN_PW;
+const TEACHER_PW = window.TEACHER_PW;
 const MAX_LIVES=3;
 const USE_FB=!!FIREBASE_CONFIG.databaseURL;
 
@@ -1084,12 +1101,13 @@ const BOSSES=[
  */
 let S={
   totalStars:0,currentLevel:1,currentDay:1,currentLesson:1,
-  lessonMode:'double', // 'double' = Doppelstunden (1/2, 3/4...), 'single' = Einzelstunden (1, 2, 3...)
+  lessonMode:'double',
   completedLevels:[],checkedCriteria:{},
   rewards:[],dayRewards:{},
   bossProgress:{},defeatedBosses:[],activeBossDay:null,
   students:[],log:[],
   customCriteria:{},
+  passwords:{}, // {admin: '...', teacher: '...'} - overrides config.js defaults
 };
 let U={name:'',role:'subject'};
 let selRole='subject';
@@ -1203,6 +1221,7 @@ function push(){
       defeatedBosses:Array.isArray(S.defeatedBosses)?S.defeatedBosses:[],
       activeBossDay:S.activeBossDay||null,
       customCriteria:S.customCriteria||{},
+      passwords:S.passwords||{},
     };
     ref.update(update).then(()=>syncDot('on')).catch(err=>{
       console.warn('[KQ] push failed:',err);
@@ -1234,6 +1253,7 @@ function fixState(){
   if(!S.currentDay)S.currentDay=1;
   if(!S.currentLesson)S.currentLesson=1;
   if(!S.lessonMode)S.lessonMode='double';
+  if(!S.passwords || typeof S.passwords!=='object') S.passwords={};
   applyCustomCriteria();
 }
 function applyCustomCriteria(){
@@ -1343,13 +1363,25 @@ function sendPush(title,body,tag='kq'){
 function pickRole(r){
   selRole=r;
   document.querySelectorAll('.role-opt').forEach(e=>e.classList.toggle('sel',e.dataset.r===r));
-  document.getElementById('pw-wrap').classList.toggle('hidden',r!=='admin');
+  const lbl=document.getElementById('pw-label');
+  if(lbl) lbl.textContent=r==='admin'?'Admin-Passwort':'Lehrer-Passwort';
 }
 function doLogin(){
   const name=document.getElementById('l-name').value.trim();
   const err=document.getElementById('l-err');err.textContent='';
   if(!name){err.textContent='Bitte deinen Namen eingeben.';return}
-  if(selRole==='admin'&&document.getElementById('l-pw').value!==ADMIN_PW){err.textContent='Falsches Passwort.';return}
+  const pw=document.getElementById('l-pw').value;
+
+  // Effective passwords (from Firebase state if set, otherwise config defaults)
+  const adminPw=(S.passwords && S.passwords.admin) || ADMIN_PW;
+  const teacherPw=(S.passwords && S.passwords.teacher) || (window.TEACHER_PW || ADMIN_PW);
+
+  if(selRole==='admin'){
+    if(pw!==adminPw){err.textContent='Falsches Admin-Passwort.';return}
+  } else {
+    if(pw!==teacherPw){err.textContent='Falsches Lehrer-Passwort.';return}
+  }
+
   U={name,role:selRole};
   try{localStorage.setItem('kq_u',JSON.stringify(U));}catch(e){}
   applyUser();initFB();renderAll();checkPush();
@@ -1915,6 +1947,41 @@ function finishLesson(){
     selLvl=activeLvl.id;
     checkLevelUp();
   }
+}
+
+function changeTeacherPw(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const oldPw=(S.passwords && S.passwords.teacher) || (window.TEACHER_PW || ADMIN_PW);
+  const newPw=prompt(`Neues Lehrer-Passwort eingeben:\n(Mindestens 4 Zeichen)\n\nAktuell: ${oldPw}`);
+  if(newPw===null) return;
+  if(newPw.length<4){toast('Passwort zu kurz (min. 4)');return}
+  if(!S.passwords) S.passwords={};
+  S.passwords.teacher=newPw;
+  push();
+  addLog({type:'pw',icon:'🔑',text:`Lehrer-Passwort geändert`,sub:`von ${U.name}`});
+  toast('✓ Lehrer-Passwort geändert');
+}
+
+function changeAdminPw(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const oldPw=(S.passwords && S.passwords.admin) || ADMIN_PW;
+  const newPw=prompt(`Neues Admin-Passwort eingeben:\n(Mindestens 4 Zeichen)\n\nAktuell: ${oldPw}`);
+  if(newPw===null) return;
+  if(newPw.length<4){toast('Passwort zu kurz (min. 4)');return}
+  if(!S.passwords) S.passwords={};
+  S.passwords.admin=newPw;
+  push();
+  addLog({type:'pw',icon:'🔑',text:`Admin-Passwort geändert`,sub:`von ${U.name}`});
+  toast('✓ Admin-Passwort geändert');
+}
+
+function resetPasswords(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  if(!confirm('Passwörter auf die Werte aus config.js zurücksetzen?')) return;
+  S.passwords={};
+  push();
+  addLog({type:'pw',icon:'🔑',text:`Passwörter zurückgesetzt`,sub:`von ${U.name}`});
+  toast('✓ Passwörter zurückgesetzt (config.js aktiv)');
 }
 
 function toggleLessonMode(){
