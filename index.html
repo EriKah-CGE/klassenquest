@@ -1185,26 +1185,33 @@ function initFB(){
   }catch(e){console.error(e);syncDot('off');loadLocal();}
 }
 function push(){
-  saveLocal();
+  try{saveLocal();}catch(e){}
   if(!ref||remote)return;
-  syncDot('spin');
-  // Only sync simple state - students and log are handled by atomic transactions
-  const update={
-    totalStars:S.totalStars,
-    currentLevel:S.currentLevel,
-    currentDay:S.currentDay,
-    currentLesson:S.currentLesson,
-    lessonMode:S.lessonMode||'double',
-    completedLevels:S.completedLevels||[],
-    checkedCriteria:S.checkedCriteria||{},
-    rewards:S.rewards||[],
-    dayRewards:S.dayRewards||{},
-    bossProgress:S.bossProgress||{},
-    defeatedBosses:S.defeatedBosses||[],
-    activeBossDay:S.activeBossDay||null,
-    customCriteria:S.customCriteria||{},
-  };
-  ref.update(update).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  try{
+    syncDot('spin');
+    const update={
+      totalStars:S.totalStars||0,
+      currentLevel:S.currentLevel||1,
+      currentDay:S.currentDay||1,
+      currentLesson:S.currentLesson||1,
+      lessonMode:S.lessonMode||'double',
+      completedLevels:Array.isArray(S.completedLevels)?S.completedLevels:[],
+      checkedCriteria:S.checkedCriteria||{},
+      rewards:Array.isArray(S.rewards)?S.rewards:[],
+      dayRewards:S.dayRewards||{},
+      bossProgress:S.bossProgress||{},
+      defeatedBosses:Array.isArray(S.defeatedBosses)?S.defeatedBosses:[],
+      activeBossDay:S.activeBossDay||null,
+      customCriteria:S.customCriteria||{},
+    };
+    ref.update(update).then(()=>syncDot('on')).catch(err=>{
+      console.warn('[KQ] push failed:',err);
+      syncDot('off');
+    });
+  }catch(err){
+    console.warn('[KQ] push crashed:',err);
+    syncDot('off');
+  }
 }
 function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className='sync '+s}
 function saveLocal(){try{localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
@@ -1777,7 +1784,9 @@ function tickCrit(idx){
     const lvl=LEVELS.find(l=>l.id===selLvl);
     if(!lvl){console.warn('[KQ] tickCrit: no level for selLvl=',selLvl);return}
     const lk=lessonKey();
-    if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object')S.checkedCriteria[lk]={};
+    // Make sure checkedCriteria is properly initialized
+    if(!S.checkedCriteria || typeof S.checkedCriteria!=='object') S.checkedCriteria={};
+    if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object') S.checkedCriteria[lk]={};
     // Ensure array – Firebase may have stored it as object {0:..., 1:...}
     let arr=S.checkedCriteria[lk][selLvl];
     if(!Array.isArray(arr)){
@@ -1797,6 +1806,9 @@ function tickCrit(idx){
       addLog({type:'stars',icon:'↺',text:`Stern zurückgenommen · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name}`});
       toast('Rückgängig');
     }
+    // Save back – re-check existence in case async listener cleared it
+    if(!S.checkedCriteria || typeof S.checkedCriteria!=='object') S.checkedCriteria={};
+    if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object') S.checkedCriteria[lk]={};
     S.checkedCriteria[lk][selLvl]=arr;
     push();
     const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
@@ -2240,26 +2252,36 @@ function assignReward(id){
 
 /* LOG */
 function addLog(e){
-  const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
-  S.log.unshift(entry);
-  if(S.log.length>500)S.log.length=500;
-  // Force re-render so the user sees their action immediately
-  try{renderLog();}catch(err){}
+  try{
+    const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
 
-  // Sync to Firebase atomically
-  if(ref){
-    ref.child('log').transaction(current=>{
-      let arr=current;
-      if(arr && typeof arr==='object' && !Array.isArray(arr)){
-        arr=Object.values(arr).filter(x=>x!=null);
-      }
-      if(!Array.isArray(arr)) arr=[];
-      arr.unshift(entry);
-      if(arr.length>500) arr.length=500;
-      return arr;
-    }).catch(err=>{console.warn('[KQ] log sync failed:',err)});
-  } else {
-    saveLocal();
+    // Ensure S.log is a real array
+    if(!Array.isArray(S.log)){
+      S.log = (S.log && typeof S.log==='object') ? Object.values(S.log).filter(x=>x!=null) : [];
+    }
+    S.log.unshift(entry);
+    if(S.log.length>500)S.log.length=500;
+
+    // Re-render log if visible
+    try{renderLog();}catch(err){console.warn('[KQ] renderLog failed:',err)}
+
+    // Sync to Firebase
+    if(ref){
+      ref.child('log').transaction(current=>{
+        let arr=current;
+        if(arr && typeof arr==='object' && !Array.isArray(arr)){
+          arr=Object.values(arr).filter(x=>x!=null);
+        }
+        if(!Array.isArray(arr)) arr=[];
+        arr.unshift(entry);
+        if(arr.length>500) arr.length=500;
+        return arr;
+      }).catch(err=>{console.warn('[KQ] log sync failed:',err)});
+    } else {
+      try{saveLocal();}catch(err){}
+    }
+  }catch(err){
+    console.error('[KQ] addLog failed:',err);
   }
 }
 function setF(f){
