@@ -1641,8 +1641,8 @@ function buildLevelSheet(){
     ${rewardStrip(reward)}
 
     <div class="crit-info-bar">
-      <span>🌟 Tippe ein Kriterium für 1 Stern</span>
-      <span>${done.size}/${lvl.criteria.length} diese Stunde</span>
+      <span>🌟 Markiere Kriterien · Sterne kommen bei "Stunde fertig"</span>
+      <span>${done.size} markiert</span>
     </div>
     <div class="crit-list">
       ${lvl.criteria.map((c,i)=>{
@@ -1676,7 +1676,7 @@ function buildLevelSheet(){
 
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
       <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
-        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig
+        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig${countMarkedStars()>0?` · +${countMarkedStars()} ⭐`:''}
       </button>
       <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
         🌙 Tag beenden → T${S.currentDay+1}
@@ -1731,7 +1731,7 @@ function buildBossSheet(){
     </button>
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
       <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
-        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig
+        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig${countMarkedStars()>0?` · +${countMarkedStars()} ⭐`:''}
       </button>
       <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
         🌙 Tag beenden → T${S.currentDay+1}
@@ -1770,6 +1770,18 @@ function lessonLabel(n){
 function lessonTypeLabel(){
   return (S.lessonMode||'double')==='single' ? 'Einzelstunde' : 'Doppelstunde';
 }
+
+function countMarkedStars(){
+  // How many criteria are marked in the current lesson across all levels?
+  const lk=lessonKey();
+  if(!S.checkedCriteria || !S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object') return 0;
+  let total=0;
+  Object.values(S.checkedCriteria[lk]).forEach(arr=>{
+    if(Array.isArray(arr)) total+=arr.length;
+    else if(arr && typeof arr==='object') total+=Object.keys(arr).length;
+  });
+  return total;
+}
 function getCritDone(lvlId){
   const lk=lessonKey();
   let arr=(S.checkedCriteria[lk]&&S.checkedCriteria[lk][lvlId])||[];
@@ -1784,10 +1796,8 @@ function tickCrit(idx){
     const lvl=LEVELS.find(l=>l.id===selLvl);
     if(!lvl){console.warn('[KQ] tickCrit: no level for selLvl=',selLvl);return}
     const lk=lessonKey();
-    // Make sure checkedCriteria is properly initialized
     if(!S.checkedCriteria || typeof S.checkedCriteria!=='object') S.checkedCriteria={};
     if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object') S.checkedCriteria[lk]={};
-    // Ensure array – Firebase may have stored it as object {0:..., 1:...}
     let arr=S.checkedCriteria[lk][selLvl];
     if(!Array.isArray(arr)){
       arr = (arr && typeof arr==='object') ? Object.values(arr).filter(x=>x!=null) : [];
@@ -1796,29 +1806,20 @@ function tickCrit(idx){
 
     if(pos===-1){
       arr.push(idx);
-      S.totalStars++;
-      addLog({type:'stars',icon:'⭐',text:`+1 Stern · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name} (${lessonLabel()})`});
-      miniConfetti();
-      toast('⭐ +1 Stern!');
+      toast('✓ markiert');
     }else{
       arr.splice(pos,1);
-      S.totalStars=Math.max(0,S.totalStars-1);
-      addLog({type:'stars',icon:'↺',text:`Stern zurückgenommen · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name}`});
-      toast('Rückgängig');
+      toast('Markierung weg');
     }
-    // Save back – re-check existence in case async listener cleared it
+
     if(!S.checkedCriteria || typeof S.checkedCriteria!=='object') S.checkedCriteria={};
     if(!S.checkedCriteria[lk] || typeof S.checkedCriteria[lk]!=='object') S.checkedCriteria[lk]={};
     S.checkedCriteria[lk][selLvl]=arr;
     push();
-    const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
     try{buildLevelSheet();}catch(e){console.warn('[KQ] buildLevelSheet failed:',e)}
-    try{renderMap();}catch(e){console.warn('[KQ] renderMap failed:',e)}
-    try{renderCurInfo();}catch(e){console.warn('[KQ] renderCurInfo failed:',e)}
-    if(checkLevelUp())closeSheet();
   }catch(err){
     console.error('[KQ] tickCrit failed:',err);
-    toast('Fehler beim Stern vergeben');
+    toast('Fehler');
   }
 }
 
@@ -1853,13 +1854,67 @@ function resetTodayCrit(){
 
 function finishLesson(){
   const prevLessonLabel=lessonLabel(S.currentLesson);
+  const lk=lessonKey();
+
+  // Count and award all marked stars across all levels
+  let totalNewStars=0;
+  const detailsByLevel=[]; // {lvlId, count, criteria:[names]}
+  if(S.checkedCriteria && S.checkedCriteria[lk] && typeof S.checkedCriteria[lk]==='object'){
+    Object.keys(S.checkedCriteria[lk]).forEach(lvlId=>{
+      let arr=S.checkedCriteria[lk][lvlId];
+      if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+      if(arr.length>0){
+        totalNewStars+=arr.length;
+        const lvl=LEVELS.find(l=>l.id===Number(lvlId));
+        if(lvl){
+          detailsByLevel.push({
+            lvl,
+            count:arr.length,
+            critNames:arr.map(i=>lvl.criteria[i]).filter(Boolean)
+          });
+        }
+      }
+    });
+  }
+
+  // Add stars to total
+  if(totalNewStars>0){
+    S.totalStars=(S.totalStars||0)+totalNewStars;
+    // Log per level for transparency
+    detailsByLevel.forEach(d=>{
+      addLog({
+        type:'stars',
+        icon:'⭐',
+        text:`+${d.count} ${d.count===1?'Stern':'Sterne'} · ${d.lvl.name}`,
+        sub:`${d.critNames.join(', ')} · ${U.name} (${prevLessonLabel})`
+      });
+    });
+    miniConfetti();
+  }
+
+  // Clear marks for this lesson (next teacher starts fresh)
+  if(S.checkedCriteria){
+    delete S.checkedCriteria[lk];
+  }
+
+  // Advance lesson
   S.currentLesson++;
   const newLessonLabel=lessonLabel(S.currentLesson);
-  addLog({type:'lesson',icon:'⏱️',text:`${lessonTypeLabel()} ${prevLessonLabel} beendet`,sub:`Tag ${S.currentDay} · Nächste: ${newLessonLabel} · von ${U.name}`});
+  addLog({type:'lesson',icon:'⏱️',text:`${lessonTypeLabel()} ${prevLessonLabel} beendet`,sub:`Tag ${S.currentDay} · +${totalNewStars} ⭐ · Nächste: ${newLessonLabel} · von ${U.name}`});
+
   push();
   closeSheet();
   renderAll();
-  toast(`✓ ${prevLessonLabel} fertig · jetzt ${newLessonLabel}`);
+  toast(`✓ ${prevLessonLabel} fertig · +${totalNewStars} ⭐`);
+
+  // Check level-up after stars are added
+  // Find highest active level and check if it's now done
+  const activeLvl=LEVELS.find(l=>l.id===S.currentLevel);
+  if(activeLvl && !S.completedLevels.includes(activeLvl.id) && S.totalStars>=activeLvl.starsNeeded){
+    // Trigger level up via setLvl
+    selLvl=activeLvl.id;
+    checkLevelUp();
+  }
 }
 
 function toggleLessonMode(){
