@@ -794,7 +794,7 @@ body.admin .admin-only{display:block}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
       <div>
         <div style="font-family:'Cinzel',serif;font-size:1.6rem;font-weight:700;color:var(--gold);text-shadow:0 0 14px rgba(245,200,66,.35);line-height:1">Tag <span id="day-big">1</span></div>
-        <div style="font-size:.78rem;font-weight:700;color:var(--text-2);margin-top:2px">📚 Doppelstunde <span id="lesson-big">1</span></div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--text-2);margin-top:2px">📚 <span id="lesson-label-big">Doppelstunde 1./2.</span></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch">
         <button class="btn btn-green btn-sm" onclick="finishLesson()" style="white-space:nowrap">✓ Stunde fertig</button>
@@ -887,6 +887,17 @@ body.admin .admin-only{display:block}
     <!-- Tag & Spiel – nur Admin -->
     <div class="sg admin-only">
       <div class="sg-title">Tag & Spiel</div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Stunden-Modus</div><div class="sg-hint" id="lesson-mode-hint">Doppelstunden (1./2., 3./4., …)</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleLessonMode()" id="lesson-mode-btn">Wechseln</button>
+      </div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Manuelle Stunde</div><div class="sg-hint" id="manual-lesson-hint">Aktuell: 1./2.</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-xs" onclick="prevLesson()">←</button>
+          <button class="btn btn-ghost btn-xs" onclick="nextLessonManual()">→</button>
+        </div>
+      </div>
       <div class="sg-row">
         <div><div class="sg-lbl">Nächster Tag</div><div class="sg-hint">Leben zurücksetzen, Bosse prüfen</div></div>
         <button class="btn btn-blue btn-sm" onclick="nextDay()">Tag +1</button>
@@ -1073,6 +1084,7 @@ const BOSSES=[
  */
 let S={
   totalStars:0,currentLevel:1,currentDay:1,currentLesson:1,
+  lessonMode:'double', // 'double' = Doppelstunden (1/2, 3/4...), 'single' = Einzelstunden (1, 2, 3...)
   completedLevels:[],checkedCriteria:{},
   rewards:[],dayRewards:{},
   bossProgress:{},defeatedBosses:[],activeBossDay:null,
@@ -1182,6 +1194,7 @@ function push(){
     currentLevel:S.currentLevel,
     currentDay:S.currentDay,
     currentLesson:S.currentLesson,
+    lessonMode:S.lessonMode||'double',
     completedLevels:S.completedLevels||[],
     checkedCriteria:S.checkedCriteria||{},
     rewards:S.rewards||[],
@@ -1213,6 +1226,7 @@ function fixState(){
   if(!S.currentLevel)S.currentLevel=1;
   if(!S.currentDay)S.currentDay=1;
   if(!S.currentLesson)S.currentLesson=1;
+  if(!S.lessonMode)S.lessonMode='double';
   applyCustomCriteria();
 }
 function applyCustomCriteria(){
@@ -1365,7 +1379,8 @@ function renderAll(){
   const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
   const hd=document.getElementById('hud-day'); if(hd) hd.textContent=S.currentDay;
   const db=document.getElementById('day-big'); if(db) db.textContent=S.currentDay;
-  const lb=document.getElementById('lesson-big'); if(lb) lb.textContent=S.currentLesson;
+  const lb=document.getElementById('lesson-label-big'); if(lb) lb.textContent=lessonTypeLabel()+' '+lessonLabel();
+  try{updateLessonModeUI();}catch(e){}
   try{renderMap();}catch(e){console.warn('renderMap failed:',e)}
   try{renderCurInfo();}catch(e){console.warn('renderCurInfo failed:',e)}
   try{renderDayTracker();}catch(e){console.warn('renderDayTracker failed:',e)}
@@ -1606,7 +1621,7 @@ function buildLevelSheet(){
 
   document.getElementById('sh-body').innerHTML=`
     <div class="sheet-title">${lvl.em} ${esc(lvl.name)}</div>
-    <div class="sheet-sub">Level ${lvl.id} · Tag ${S.currentDay} · 📚 Doppelstunde ${S.currentLesson}</div>
+    <div class="sheet-sub">Level ${lvl.id} · Tag ${S.currentDay} · 📚 ${lessonTypeLabel()} ${lessonLabel()}</div>
 
     <div class="star-display">
       <span class="star-display-icon">⭐</span>
@@ -1653,11 +1668,11 @@ function buildLevelSheet(){
     `:''}
 
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:1rem;padding:14px 20px;margin-bottom:8px">
-        ✓ Stunde ${S.currentLesson} beendet · Nächste Doppelstunde
+      <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
+        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig
       </button>
-      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()">
-        🌙 Tag ${S.currentDay} beendet · Nächster Tag (T${S.currentDay+1})
+      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
+        🌙 Tag beenden → T${S.currentDay+1}
       </button>
     </div>
   `;
@@ -1708,11 +1723,11 @@ function buildBossSheet(){
       ⚔️ ${prog.length>=boss.hp?'Boss besiegen!':'Weiter kämpfen…'}
     </button>
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:1rem;padding:14px 20px;margin-bottom:8px">
-        ✓ Stunde ${S.currentLesson} beendet · Nächste Doppelstunde
+      <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
+        ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig
       </button>
-      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()">
-        🌙 Tag ${S.currentDay} beendet · Nächster Tag (T${S.currentDay+1})
+      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
+        🌙 Tag beenden → T${S.currentDay+1}
       </button>
     </div>`;
 }
@@ -1735,6 +1750,19 @@ function rewardStrip(text){
 function lessonKey(){
   return 'd'+S.currentDay+'l'+S.currentLesson;
 }
+function lessonLabel(n){
+  // n = lesson number (1, 2, 3...)
+  // double mode: 1 -> "1./2.", 2 -> "3./4.", 3 -> "5./6."
+  // single mode: 1 -> "1.", 2 -> "2.", 3 -> "3."
+  const num = n||S.currentLesson;
+  if((S.lessonMode||'double')==='single'){
+    return num+'.';
+  }
+  return (num*2-1)+'./'+(num*2)+'.';
+}
+function lessonTypeLabel(){
+  return (S.lessonMode||'double')==='single' ? 'Einzelstunde' : 'Doppelstunde';
+}
 function getCritDone(lvlId){
   const lk=lessonKey();
   const arr=(S.checkedCriteria[lk]&&S.checkedCriteria[lk][lvlId])||[];
@@ -1753,7 +1781,7 @@ function tickCrit(idx){
   if(pos===-1){
     arr.push(idx);
     S.totalStars++;
-    addLog({type:'stars',icon:'⭐',text:`+1 Stern · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name} (Std. ${S.currentLesson})`});
+    addLog({type:'stars',icon:'⭐',text:`+1 Stern · ${lvl.name}`,sub:`"${lvl.criteria[idx]}" · ${U.name} (${lessonLabel()})`});
     miniConfetti();
     toast('⭐ +1 Stern!');
   }else{
@@ -1800,14 +1828,51 @@ function resetTodayCrit(){
 }
 
 function finishLesson(){
-  // End current lesson: stars stay, but checks reset for next teacher
-  const prevLesson=S.currentLesson;
+  const prevLessonLabel=lessonLabel(S.currentLesson);
   S.currentLesson++;
-  addLog({type:'lesson',icon:'⏱️',text:`Doppelstunde ${prevLesson} beendet`,sub:`Tag ${S.currentDay} · Nächste: Std. ${S.currentLesson} · von ${U.name}`});
+  const newLessonLabel=lessonLabel(S.currentLesson);
+  addLog({type:'lesson',icon:'⏱️',text:`${lessonTypeLabel()} ${prevLessonLabel} beendet`,sub:`Tag ${S.currentDay} · Nächste: ${newLessonLabel} · von ${U.name}`});
   push();
   closeSheet();
   renderAll();
-  toast(`✓ Stunde ${prevLesson} fertig · jetzt Stunde ${S.currentLesson}`);
+  toast(`✓ ${prevLessonLabel} fertig · jetzt ${newLessonLabel}`);
+}
+
+function toggleLessonMode(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const newMode=(S.lessonMode||'double')==='double'?'single':'double';
+  if(!confirm(`Stunden-Modus wechseln zu ${newMode==='double'?'Doppelstunden':'Einzelstunden'}?\n\nAchtung: Die aktuelle Stundenzählung bleibt, nur die Anzeige ändert sich.`))return;
+  S.lessonMode=newMode;
+  push();
+  renderAll();
+  updateLessonModeUI();
+  toast(`✓ Modus: ${newMode==='double'?'Doppelstunden':'Einzelstunden'}`);
+}
+
+function nextLessonManual(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  S.currentLesson++;
+  push();
+  renderAll();
+  updateLessonModeUI();
+  toast(`Jetzt: ${lessonLabel()}`);
+}
+
+function prevLesson(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  if(S.currentLesson<=1){toast('Bereits bei der ersten Stunde');return}
+  S.currentLesson--;
+  push();
+  renderAll();
+  updateLessonModeUI();
+  toast(`Jetzt: ${lessonLabel()}`);
+}
+
+function updateLessonModeUI(){
+  const h=document.getElementById('lesson-mode-hint');
+  if(h)h.textContent=(S.lessonMode||'double')==='double'?'Doppelstunden (1./2., 3./4., …)':'Einzelstunden (1., 2., 3., …)';
+  const m=document.getElementById('manual-lesson-hint');
+  if(m)m.textContent=`Aktuell: ${lessonLabel()}`;
 }
 
 function getDayReward(){
@@ -1865,7 +1930,7 @@ function nextDay(){
     S.activeBossDay=null;
   }
 
-  addLog({type:'day',icon:'📅',text:`Tag ${S.currentDay} gestartet`,sub:`${todayStars} Sterne gestern · Stunde 1 · Leben zurückgesetzt`});
+  addLog({type:'day',icon:'📅',text:`Tag ${S.currentDay} gestartet`,sub:`${todayStars} Sterne gestern · ${lessonLabel(1)} · Leben zurückgesetzt`});
   push();renderAll();
   toast(`Tag ${S.currentDay}${isBossDay?' – ⚔️ Bosskampf!':''}`);
 }
@@ -2163,8 +2228,27 @@ function assignReward(id){
 
 /* LOG */
 function addLog(e){
-  S.log.unshift({id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e});
+  const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
+  S.log.unshift(entry);
   if(S.log.length>500)S.log.length=500;
+  // Force re-render so the user sees their action immediately
+  try{renderLog();}catch(err){}
+
+  // Sync to Firebase atomically
+  if(ref){
+    ref.child('log').transaction(current=>{
+      let arr=current;
+      if(arr && typeof arr==='object' && !Array.isArray(arr)){
+        arr=Object.values(arr).filter(x=>x!=null);
+      }
+      if(!Array.isArray(arr)) arr=[];
+      arr.unshift(entry);
+      if(arr.length>500) arr.length=500;
+      return arr;
+    }).catch(err=>{console.warn('[KQ] log sync failed:',err)});
+  } else {
+    saveLocal();
+  }
 }
 function setF(f){
   logFilter=f;
