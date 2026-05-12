@@ -1886,67 +1886,80 @@ function resetTodayCrit(){
 }
 
 function finishLesson(){
-  const prevLessonLabel=lessonLabel(S.currentLesson);
-  const lk=lessonKey();
+  try{
+    const prevLessonLabel=lessonLabel(S.currentLesson);
+    const lk=lessonKey();
 
-  // Count and award all marked stars across all levels
-  let totalNewStars=0;
-  const detailsByLevel=[]; // {lvlId, count, criteria:[names]}
-  if(S.checkedCriteria && S.checkedCriteria[lk] && typeof S.checkedCriteria[lk]==='object'){
-    Object.keys(S.checkedCriteria[lk]).forEach(lvlId=>{
-      let arr=S.checkedCriteria[lk][lvlId];
-      if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-      if(arr.length>0){
-        totalNewStars+=arr.length;
-        const lvl=LEVELS.find(l=>l.id===Number(lvlId));
-        if(lvl){
-          detailsByLevel.push({
-            lvl,
-            count:arr.length,
-            critNames:arr.map(i=>lvl.criteria[i]).filter(Boolean)
-          });
+    console.log('[KQ] finishLesson called. lessonKey=',lk);
+    console.log('[KQ] S.checkedCriteria:', JSON.stringify(S.checkedCriteria));
+
+    // Count and award all marked stars across all levels
+    let totalNewStars=0;
+    const detailsByLevel=[];
+    if(S.checkedCriteria && S.checkedCriteria[lk] && typeof S.checkedCriteria[lk]==='object'){
+      console.log('[KQ] Found marks for this lesson:',S.checkedCriteria[lk]);
+      Object.keys(S.checkedCriteria[lk]).forEach(lvlId=>{
+        let arr=S.checkedCriteria[lk][lvlId];
+        console.log('[KQ] Level',lvlId,'arr=',arr,'isArray=',Array.isArray(arr));
+        if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+        console.log('[KQ] Level',lvlId,'after fix, count=',arr.length);
+        if(arr.length>0){
+          totalNewStars+=arr.length;
+          const lvl=LEVELS.find(l=>l.id===Number(lvlId));
+          if(lvl){
+            detailsByLevel.push({
+              lvl,
+              count:arr.length,
+              critNames:arr.map(i=>lvl.criteria[i]).filter(Boolean)
+            });
+          }
         }
-      }
-    });
-  }
-
-  // Add stars to total
-  if(totalNewStars>0){
-    S.totalStars=(S.totalStars||0)+totalNewStars;
-    // Log per level for transparency
-    detailsByLevel.forEach(d=>{
-      addLog({
-        type:'stars',
-        icon:'⭐',
-        text:`+${d.count} ${d.count===1?'Stern':'Sterne'} · ${d.lvl.name}`,
-        sub:`${d.critNames.join(', ')} · ${U.name} (${prevLessonLabel})`
       });
-    });
-    miniConfetti();
-  }
+    } else {
+      console.log('[KQ] No marks found for lessonKey',lk);
+    }
 
-  // Clear marks for this lesson (next teacher starts fresh)
-  if(S.checkedCriteria){
-    delete S.checkedCriteria[lk];
-  }
+    console.log('[KQ] totalNewStars=',totalNewStars,'before:',S.totalStars);
 
-  // Advance lesson
-  S.currentLesson++;
-  const newLessonLabel=lessonLabel(S.currentLesson);
-  addLog({type:'lesson',icon:'⏱️',text:`${lessonTypeLabel()} ${prevLessonLabel} beendet`,sub:`Tag ${S.currentDay} · +${totalNewStars} ⭐ · Nächste: ${newLessonLabel} · von ${U.name}`});
+    // Add stars to total
+    if(totalNewStars>0){
+      S.totalStars=(S.totalStars||0)+totalNewStars;
+      console.log('[KQ] After adding, totalStars=',S.totalStars);
+      detailsByLevel.forEach(d=>{
+        addLog({
+          type:'stars',
+          icon:'⭐',
+          text:`+${d.count} ${d.count===1?'Stern':'Sterne'} · ${d.lvl.name}`,
+          sub:`${d.critNames.join(', ')} · ${U.name} (${prevLessonLabel})`
+        });
+      });
+      try{miniConfetti();}catch(e){}
+    }
 
-  push();
-  closeSheet();
-  renderAll();
-  toast(`✓ ${prevLessonLabel} fertig · +${totalNewStars} ⭐`);
+    // Clear marks for this lesson (next teacher starts fresh)
+    if(S.checkedCriteria){
+      delete S.checkedCriteria[lk];
+    }
 
-  // Check level-up after stars are added
-  // Find highest active level and check if it's now done
-  const activeLvl=LEVELS.find(l=>l.id===S.currentLevel);
-  if(activeLvl && !S.completedLevels.includes(activeLvl.id) && S.totalStars>=activeLvl.starsNeeded){
-    // Trigger level up via setLvl
-    selLvl=activeLvl.id;
-    checkLevelUp();
+    // Advance lesson
+    S.currentLesson++;
+    const newLessonLabel=lessonLabel(S.currentLesson);
+    addLog({type:'lesson',icon:'⏱️',text:`${lessonTypeLabel()} ${prevLessonLabel} beendet`,sub:`Tag ${S.currentDay} · +${totalNewStars} ⭐ · Nächste: ${newLessonLabel} · von ${U.name}`});
+
+    push();
+    closeSheet();
+    renderAll();
+    toast(`✓ ${prevLessonLabel} fertig · +${totalNewStars} ⭐`);
+
+    // Check level-up
+    const activeLvl=LEVELS.find(l=>l.id===S.currentLevel);
+    if(activeLvl && !S.completedLevels.includes(activeLvl.id) && S.totalStars>=activeLvl.starsNeeded){
+      selLvl=activeLvl.id;
+      checkLevelUp();
+    }
+  }catch(err){
+    console.error('[KQ] finishLesson failed:',err);
+    toast('Fehler beim Stunden-Ende');
   }
 }
 
