@@ -1046,10 +1046,12 @@ body.admin .admin-only{display:block}
 window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
 window.ADMIN_PW = window.ADMIN_PW || 'klasse5a';
 window.TEACHER_PW = window.TEACHER_PW || 'lehrer5a';
+window.DB_PATH = window.DB_PATH || 'kq/v7'; // geheimer Datenbank-Pfad
 
 const FIREBASE_CONFIG = window.FIREBASE_CONFIG;
 const ADMIN_PW = window.ADMIN_PW;
 const TEACHER_PW = window.TEACHER_PW;
+const DB_PATH = window.DB_PATH;
 const MAX_LIVES=3;
 const USE_FB=!!FIREBASE_CONFIG.databaseURL;
 
@@ -1122,7 +1124,7 @@ function initFB(){
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
     db=firebase.database();
-    ref=db.ref('kq/v7');
+    ref=db.ref(DB_PATH);
     syncDot('spin');
 
     // PRIMARY listener: full state
