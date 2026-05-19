@@ -25,3 +25,4 @@ window.FIREBASE_CONFIG = {
 
 window.ADMIN_PW   = 'klasse5a';      // ← Klassenlehrer:innen (Admin-Rechte)
 window.TEACHER_PW = 'lehrer5a';      // ← Fachlehrer:innen (normales Login)
+window.DB_PATH = 'klassenquest_kq7Mq3xPnV9bRtZ2';
