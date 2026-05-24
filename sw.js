@@ -1,20 +1,31 @@
-const CACHE = 'klassenquest-v3';
-const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
+const CACHE = 'klassenquest-v4';
+const ASSETS = ['./manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})));
   self.skipWaiting();
 });
+
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
+
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  if (url.includes('firebase') || url.includes('googleapis') || url.includes('config.js')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+
+  // Always fetch fresh: Firebase, Google APIs, config, AND index.html (so users get updates)
+  if (url.includes('firebase') || url.includes('googleapis') || url.includes('config.js') ||
+      url.endsWith('/') || url.endsWith('index.html')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request) || caches.match('./index.html'))
+    );
     return;
   }
+
+  // Static assets (icons, manifest): cache-first is fine
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
