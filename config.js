@@ -9,18 +9,12 @@
 // Aus Firebase Console → Projekteinstellungen → Deine Apps kopieren
 
 window.FIREBASE_CONFIG = {
-apiKey: "AIzaSyB7w0LlNaVFmbBwXZ2LdFbW_pJZRJ69BM0",
-
+  apiKey: "AIzaSyB7w0LlNaVFmbBwXZ2LdFbW_pJZRJ69BM0",
   authDomain: "klassenquest.firebaseapp.com",
-
   databaseURL: "https://klassenquest-default-rtdb.europe-west1.firebasedatabase.app",
-
   projectId: "klassenquest",
-
   storageBucket: "klassenquest.firebasestorage.app",
-
   messagingSenderId: "833383889737",
-
   appId: "1:833383889737:web:ef3ca74ac3673e972a7898"
 
 };
