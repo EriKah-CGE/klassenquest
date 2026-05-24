@@ -879,6 +879,8 @@ body.admin .admin-only{display:block}
       <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
         <div><div class="sg-lbl">Push-Benachrichtigungen</div><div class="sg-hint" id="push-hint">Noch nicht aktiviert.</div></div>
         <button class="btn btn-gold btn-sm" id="push-btn" onclick="askPush()">🔔 Aktivieren</button>
+        <button class="btn btn-ghost btn-sm" onclick="testPush()" style="margin-top:4px">🧪 Test-Benachrichtigung senden</button>
+        <div class="sg-hint" style="margin-top:6px;font-size:.68rem;line-height:1.4" id="push-env">…</div>
       </div>
     </div>
 
@@ -1046,14 +1048,15 @@ body.admin .admin-only{display:block}
 window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
 window.ADMIN_PW = window.ADMIN_PW || 'klasse5a';
 window.TEACHER_PW = window.TEACHER_PW || 'lehrer5a';
-window.DB_PATH = window.DB_PATH || 'kq/v7'; // geheimer Datenbank-Pfad
+window.DB_PATH = window.DB_PATH || ''; // muss in config.js gesetzt sein
 
 const FIREBASE_CONFIG = window.FIREBASE_CONFIG;
 const ADMIN_PW = window.ADMIN_PW;
 const TEACHER_PW = window.TEACHER_PW;
 const DB_PATH = window.DB_PATH;
 const MAX_LIVES=3;
-const USE_FB=!!FIREBASE_CONFIG.databaseURL;
+// Only use Firebase if BOTH databaseURL AND DB_PATH are configured
+const USE_FB = !!FIREBASE_CONFIG.databaseURL && !!DB_PATH;
 
 /* DATA — 6 levels in 2 rows of 3, snake layout */
 // 20 Level – Doppelstundenprinzip: 3-5 Doppelstunden/Tag → max 12-20 Sterne/Tag
@@ -1358,6 +1361,7 @@ async function askPush(){
     const r=await Notification.requestPermission();
     pushOK=r==='granted';
     checkPush();
+    try{updatePushEnvInfo();}catch(e){}
     toast(pushOK?'🔔 Aktiviert':'Nicht erlaubt');
   }catch(e){
     toast('Fehler beim Aktivieren');
@@ -1380,6 +1384,86 @@ function sendPush(title,body,tag='kq'){
       new Notification(title,{body,icon:'./icons/icon-192.png',tag,requireInteraction:true});
     }
   }catch(e){console.warn('sendPush failed:',e)}
+}
+
+function testPush(){
+  const env=getPushEnv();
+
+  // Show environment info to user
+  updatePushEnvInfo();
+
+  if(!('Notification' in window)){
+    toast('❌ Browser unterstützt keine Push-Benachrichtigungen');
+    return;
+  }
+
+  if(env.isIOS && !env.isStandalone){
+    toast('❌ iOS: App muss vom Homescreen gestartet werden');
+    return;
+  }
+
+  if(Notification.permission==='denied'){
+    toast('❌ Blockiert – in Geräte-Einstellungen freigeben');
+    return;
+  }
+
+  if(Notification.permission!=='granted'){
+    toast('Erst auf "Aktivieren" klicken');
+    return;
+  }
+
+  // Send the test notification
+  sendPush('🧪 Klassenquest Test',`Funktioniert! Test um ${new Date().toLocaleTimeString('de-DE')}`,'kq-test');
+
+  // Also a toast as feedback that the test was sent
+  toast('Test-Benachrichtigung gesendet – schau aufs Display!');
+
+  // Set a check timer: if user is still here in 3 seconds, suggest they look
+  setTimeout(()=>{
+    const hint=document.getElementById('push-hint');
+    if(hint && Notification.permission==='granted'){
+      hint.innerHTML='✅ Aktiv – falls du nichts gesehen hast, prüfe deine Geräte-Einstellungen für Push-Benachrichtigungen.';
+    }
+  },3000);
+}
+
+function getPushEnv(){
+  const ua=navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  const isMac = /Macintosh/.test(ua) && !isIOS;
+  const isWin = /Windows/.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  let browser='unbekannt';
+  if(/Firefox/.test(ua)) browser='Firefox';
+  else if(/Edg/.test(ua)) browser='Edge';
+  else if(/Chrome/.test(ua)) browser='Chrome';
+  else if(/Safari/.test(ua)) browser='Safari';
+  let os='unbekannt';
+  if(isIOS) os='iOS';
+  else if(isAndroid) os='Android';
+  else if(isMac) os='macOS';
+  else if(isWin) os='Windows';
+
+  return {isIOS,isAndroid,isMac,isWin,isStandalone,browser,os,
+    hasNotif:'Notification' in window,
+    permission:('Notification' in window)?Notification.permission:'unsupported'};
+}
+
+function updatePushEnvInfo(){
+  const el=document.getElementById('push-env');
+  if(!el)return;
+  const e=getPushEnv();
+  let status='';
+  let color='var(--text-3)';
+  if(!e.hasNotif){status='❌ Browser nicht unterstützt';color='var(--red)';}
+  else if(e.isIOS && !e.isStandalone){status='⚠️ iOS: App muss vom Homescreen!';color='var(--gold)';}
+  else if(e.permission==='denied'){status='❌ Blockiert (Geräte-Einstellungen)';color='var(--red)';}
+  else if(e.permission==='granted'){status='✅ Bereit';color='var(--green)';}
+  else{status='⏸ Noch nicht aktiviert';color='var(--text-2)';}
+
+  el.style.color=color;
+  el.innerHTML=`<strong>System:</strong> ${e.os} · ${e.browser}${e.isStandalone?' · 📱 PWA-Modus':''}<br><strong>Status:</strong> ${status}`;
 }
 
 /* LOGIN */
@@ -1433,6 +1517,7 @@ function goPage(name){
   if(name==='students')renderStudents();
   if(name==='bank')renderRewards();
   if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
+  if(name==='settings'){try{updatePushEnvInfo();}catch(e){}}
   window.scrollTo(0,0);
 }
 
