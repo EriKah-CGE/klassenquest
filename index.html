@@ -1358,32 +1358,73 @@ async function askPush(){
   }
 
   try{
+    // For iOS: ensure Service Worker is ready BEFORE requesting permission
+    if('serviceWorker' in navigator){
+      try{
+        // Make sure SW is registered and ready
+        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.ready;
+        console.log('[KQ] Service Worker ready');
+      }catch(swErr){
+        console.warn('[KQ] SW registration failed:',swErr);
+      }
+    }
+
     const r=await Notification.requestPermission();
     pushOK=r==='granted';
     checkPush();
     try{updatePushEnvInfo();}catch(e){}
-    toast(pushOK?'🔔 Aktiviert':'Nicht erlaubt');
+
+    if(pushOK){
+      toast('🔔 Aktiviert');
+      // Immediately send a confirmation notification on iOS to ensure it sticks
+      if(isIOS){
+        setTimeout(()=>{
+          sendPush('🎉 Klassenquest','Push-Benachrichtigungen aktiviert!','kq-welcome');
+        },500);
+      }
+    } else {
+      toast('Nicht erlaubt');
+    }
   }catch(e){
+    console.error('[KQ] askPush failed:',e);
     toast('Fehler beim Aktivieren');
   }
 }
-function sendPush(title,body,tag='kq'){
+async function sendPush(title,body,tag='kq'){
   if(!('Notification' in window) || Notification.permission!=='granted')return;
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // iOS doesn't support requireInteraction and some other options
+  const opts = {
+    body,
+    icon:'./icons/icon-192.png',
+    badge:'./icons/icon-192.png',
+    tag
+  };
+  if(!isIOS){
+    opts.vibrate=[200,100,200];
+    opts.requireInteraction=true;
+  }
+
   try{
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.getRegistration().then(reg=>{
-        if(reg && reg.showNotification){
-          reg.showNotification(title,{body,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',tag,vibrate:[200,100,200],requireInteraction:true});
-        }else{
-          new Notification(title,{body,icon:'./icons/icon-192.png',tag,requireInteraction:true});
-        }
-      }).catch(()=>{
-        try{new Notification(title,{body,tag,requireInteraction:true});}catch(e){}
-      });
-    }else{
-      new Notification(title,{body,icon:'./icons/icon-192.png',tag,requireInteraction:true});
+      // navigator.serviceWorker.ready waits until SW is fully activated
+      const reg = await navigator.serviceWorker.ready;
+      if(reg && reg.showNotification){
+        await reg.showNotification(title,opts);
+        return;
+      }
     }
-  }catch(e){console.warn('sendPush failed:',e)}
+    // Fallback: direct Notification API (won't work on iOS)
+    new Notification(title,opts);
+  }catch(e){
+    console.warn('[KQ] sendPush failed:',e);
+    // Last-ditch effort
+    try{ new Notification(title,opts); }catch(e2){}
+  }
 }
 
 function testPush(){
@@ -1517,7 +1558,10 @@ function goPage(name){
   if(name==='students')renderStudents();
   if(name==='bank')renderRewards();
   if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
-  if(name==='settings'){try{updatePushEnvInfo();}catch(e){}}
+  if(name==='settings'){
+    try{checkPush();}catch(e){}
+    try{updatePushEnvInfo();}catch(e){}
+  }
   window.scrollTo(0,0);
 }
 
