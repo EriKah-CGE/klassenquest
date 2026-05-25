@@ -1,20 +1,25 @@
 {
   "name": "Klassenquest",
   "short_name": "Klassenquest",
-  "description": "Die Heldenreise deiner Klasse",
+  "description": "Verhaltensreise für die Klasse",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#1a0e3c",
-  "theme_color": "#1a0e3c",
-  "orientation": "portrait-primary",
+  "background_color": "#1a0f3d",
+  "theme_color": "#1a0f3d",
+  "orientation": "portrait",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-180.png", "sizes": "180x180", "type": "image/png" }
-  ],
-  "screenshots": [
-    { "src": "screenshots/screen1.png", "sizes": "400x800", "type": "image/png", "form_factor": "narrow" }
-  ],
-  "categories": ["education"],
-  "lang": "de"
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
