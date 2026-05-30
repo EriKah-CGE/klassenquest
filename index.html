@@ -779,6 +779,7 @@ body.admin .admin-only{display:block}
       <div class="notif-t" id="notif-t"></div>
       <div class="notif-s" id="notif-s"></div>
     </div>
+    <button class="notif-x" id="notif-print" onclick="printFromBanner()" title="Eltern-Brief drucken" style="font-size:1.1rem;margin-right:2px">🖨️</button>
     <button class="notif-x" onclick="hideNotif()">✕</button>
   </div>
 
@@ -881,6 +882,39 @@ body.admin .admin-only{display:block}
         <button class="btn btn-gold btn-sm" id="push-btn" onclick="askPush()">🔔 Aktivieren</button>
         <button class="btn btn-ghost btn-sm" onclick="testPush()" style="margin-top:4px">🧪 Test-Benachrichtigung senden</button>
         <div class="sg-hint" style="margin-top:6px;font-size:.68rem;line-height:1.4" id="push-env">…</div>
+      </div>
+    </div>
+
+    <!-- Schule – Briefkopf für Eltern-Briefe – nur Admin -->
+    <div class="sg admin-only">
+      <div class="sg-title">Schule (für Eltern-Briefe)</div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div><div class="sg-lbl">Schul-Logo</div><div class="sg-hint" id="logo-hint">Optional · wird oben im Brief angezeigt</div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <img id="logo-preview" src="" alt="" style="max-height:60px;max-width:140px;display:none;border-radius:6px;background:#fff;padding:4px">
+          <input type="file" id="logo-input" accept="image/*" onchange="uploadLogo(event)" style="font-size:.7rem">
+          <button class="btn btn-ghost btn-xs" onclick="removeLogo()" id="logo-rm-btn" style="display:none">Entfernen</button>
+        </div>
+      </div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <label class="sg-lbl">Schulname</label>
+        <input class="inp" id="sch-name" placeholder="z.B. Geschwister-Scholl-Schule" oninput="saveSchoolField('name',this.value)">
+      </div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <label class="sg-lbl">Adresse</label>
+        <input class="inp" id="sch-addr" placeholder="z.B. Schulstraße 1, 12345 Musterstadt" oninput="saveSchoolField('address',this.value)">
+      </div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <label class="sg-lbl">Kontakt</label>
+        <input class="inp" id="sch-contact" placeholder="z.B. Tel. 01234-56789 · info@schule.de" oninput="saveSchoolField('contact',this.value)">
+      </div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <label class="sg-lbl">Klasse</label>
+        <input class="inp" id="sch-class" placeholder="z.B. 5a" oninput="saveSchoolField('className',this.value)">
+      </div>
+      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <label class="sg-lbl">Klassenlehrer:in (für Unterschrift)</label>
+        <input class="inp" id="sch-sig" placeholder="z.B. Frau Müller" oninput="saveSchoolField('signatory',this.value)">
       </div>
     </div>
 
@@ -1112,7 +1146,15 @@ let S={
   bossProgress:{},defeatedBosses:[],activeBossDay:null,
   students:[],log:[],
   customCriteria:{},
-  passwords:{}, // {admin: '...', teacher: '...'} - overrides config.js defaults
+  passwords:{},
+  school:{ // Schul-Briefkopf für Eltern-Briefe
+    name:'',
+    address:'',
+    contact:'',
+    className:'',
+    logoData:'', // Base64-Logo
+    signatory:'' // Name des Klassenlehrers für Unterschrift
+  },
 };
 let U={name:'',role:'subject'};
 let selRole='subject';
@@ -1152,7 +1194,7 @@ function initFB(){
         const fieldsToMerge=['totalStars','currentLevel','currentDay','currentLesson',
                              'lessonMode','completedLevels','checkedCriteria',
                              'rewards','dayRewards','bossProgress','defeatedBosses',
-                             'activeBossDay','customCriteria','passwords'];
+                             'activeBossDay','customCriteria','passwords','school'];
         fieldsToMerge.forEach(k=>{
           if(d[k]!==undefined) S[k]=d[k];
         });
@@ -1171,12 +1213,13 @@ function initFB(){
               const lastReason=s.reasons && s.reasons['d'+S.currentDay] && s.reasons['d'+S.currentDay].slice(-1)[0];
               const teacher=lastReason?lastReason.teacher:'unbekannt';
               if(teacher!==U.name){
+                lastBannerStudentId=s.id;
                 document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
                 document.getElementById('notif-s').textContent=`Gemeldet von ${teacher}`;
                 const b=document.getElementById('notif');
                 b.classList.add('on');
                 clearTimeout(window._nb);
-                window._nb=setTimeout(()=>b.classList.remove('on'),9000);
+                window._nb=setTimeout(()=>b.classList.remove('on'),15000);
                 sendPush('⚠️ Alle Leben verloren!',`${s.name} – gemeldet von ${teacher}`,'kq-lives-'+s.id);
                 playAlarm();
               }
@@ -1248,6 +1291,7 @@ function push(){
       activeBossDay:S.activeBossDay||null,
       customCriteria:S.customCriteria||{},
       passwords:S.passwords||{},
+      school:S.school||{},
     };
     ref.update(update).then(()=>syncDot('on')).catch(err=>{
       console.warn('[KQ] push failed:',err);
@@ -1280,6 +1324,7 @@ function fixState(){
   if(!S.currentLesson)S.currentLesson=1;
   if(!S.lessonMode)S.lessonMode='double';
   if(!S.passwords || typeof S.passwords!=='object') S.passwords={};
+  if(!S.school || typeof S.school!=='object') S.school={name:'',address:'',contact:'',className:'',logoData:'',signatory:''};
   applyCustomCriteria();
 }
 function applyCustomCriteria(){
@@ -1561,6 +1606,7 @@ function goPage(name){
   if(name==='settings'){
     try{checkPush();}catch(e){}
     try{updatePushEnvInfo();}catch(e){}
+    try{loadSchoolFields();}catch(e){}
   }
   window.scrollTo(0,0);
 }
@@ -2159,6 +2205,182 @@ function finishLesson(){
   }
 }
 
+/* SCHOOL / ELTERN-BRIEF */
+function saveSchoolField(key,value){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  if(!S.school || typeof S.school!=='object') S.school={};
+  S.school[key]=value;
+  // Debounce: save after short delay
+  clearTimeout(window._schoolSaveT);
+  window._schoolSaveT=setTimeout(()=>{push();},600);
+}
+
+function uploadLogo(ev){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const file=ev.target.files[0];
+  if(!file)return;
+  if(file.size>500000){
+    toast('Bild zu groß (max 500 KB)');
+    ev.target.value='';
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    if(!S.school) S.school={};
+    S.school.logoData=e.target.result;
+    push();
+    showLogoPreview();
+    toast('✓ Logo gespeichert');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo(){
+  if(U.role!=='admin')return;
+  if(!confirm('Logo entfernen?'))return;
+  if(!S.school) S.school={};
+  S.school.logoData='';
+  push();
+  showLogoPreview();
+  toast('Logo entfernt');
+}
+
+function showLogoPreview(){
+  const img=document.getElementById('logo-preview');
+  const rm=document.getElementById('logo-rm-btn');
+  const hint=document.getElementById('logo-hint');
+  if(!img)return;
+  if(S.school && S.school.logoData){
+    img.src=S.school.logoData;
+    img.style.display='';
+    if(rm)rm.style.display='';
+    if(hint)hint.textContent='✓ Logo gespeichert · oben im Brief';
+  } else {
+    img.src='';
+    img.style.display='none';
+    if(rm)rm.style.display='none';
+    if(hint)hint.textContent='Optional · wird oben im Brief angezeigt';
+  }
+}
+
+function loadSchoolFields(){
+  // Populate form fields from state (called when settings tab opens)
+  const sc=S.school||{};
+  const m={'sch-name':'name','sch-addr':'address','sch-contact':'contact','sch-class':'className','sch-sig':'signatory'};
+  Object.keys(m).forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && document.activeElement!==el) el.value=sc[m[id]]||'';
+  });
+  showLogoPreview();
+}
+
+function printParentLetter(studentId){
+  const s=S.students.find(x=>x.id===studentId);
+  if(!s){toast('Schüler nicht gefunden');return}
+
+  const sc=S.school||{};
+  const dk='d'+S.currentDay;
+  const reasons = (s.reasons && s.reasons[dk]) || [];
+  // Filter out reasons – may be object form from Firebase
+  let reasonList=reasons;
+  if(!Array.isArray(reasonList)){
+    reasonList=(reasonList && typeof reasonList==='object')?Object.values(reasonList).filter(x=>x!=null):[];
+  }
+
+  const today=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'long',year:'numeric'});
+  const headerLogo = sc.logoData ? `<img src="${sc.logoData}" alt="Logo" style="max-height:80px;max-width:200px;object-fit:contain">` : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8">
+<title>Elterninfo · ${esc(s.name)}</title>
+<style>
+  @page { size:A4; margin:2cm 2.5cm; }
+  *{box-sizing:border-box}
+  body{font-family:'Helvetica',Arial,sans-serif;color:#000;font-size:12pt;line-height:1.5;margin:0;padding:0}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:2px solid #000;margin-bottom:28px}
+  .header-info{font-size:9pt;line-height:1.4;color:#333}
+  .header-info strong{display:block;font-size:11pt;color:#000;margin-bottom:2px}
+  .date{text-align:right;margin-bottom:20px;font-size:11pt}
+  h1{font-size:14pt;margin:24px 0 10px 0;font-weight:bold}
+  p{margin:10px 0;text-align:justify}
+  .incidents{margin:14px 0;padding:14px 18px;background:#f4f4f4;border-left:4px solid #c33}
+  .incidents-title{font-weight:bold;margin-bottom:8px;font-size:11pt}
+  .incidents ul{margin:0;padding-left:18px}
+  .incidents li{margin:4px 0}
+  .signature{margin-top:48px;display:flex;justify-content:space-between;gap:40px;align-items:flex-end}
+  .sig-block{flex:1;border-top:1px solid #000;padding-top:6px;font-size:10pt;color:#333}
+  .name-blank{display:inline-block;border-bottom:1px solid #000;min-width:200px;padding:0 4px}
+  .print-btn{position:fixed;top:20px;right:20px;background:#1a0f3d;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);font-family:inherit;font-weight:bold}
+  .print-btn:hover{background:#2d1c5a}
+  @media print {
+    .print-btn{display:none}
+    body{margin:0}
+  }
+</style></head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨️ Drucken</button>
+
+<div class="header">
+  <div class="header-info">
+    ${sc.name?`<strong>${esc(sc.name)}</strong>`:''}
+    ${sc.address?`<div>${esc(sc.address)}</div>`:''}
+    ${sc.contact?`<div>${esc(sc.contact)}</div>`:''}
+    ${sc.className?`<div style="margin-top:6px">Klasse: <strong>${esc(sc.className)}</strong></div>`:''}
+  </div>
+  ${headerLogo?`<div>${headerLogo}</div>`:''}
+</div>
+
+<div class="date">${esc(sc.address?sc.address.split(',').pop().trim():'')}${sc.address?', den ':''}${today}</div>
+
+<h1>Mitteilung an die Erziehungsberechtigten</h1>
+
+<p>Sehr geehrte Erziehungsberechtigte
+von <span class="name-blank">${esc(s.name)} ___________________________</span>,</p>
+
+<p>hiermit teilen wir Ihnen mit, dass Ihr Kind im heutigen Schultag wiederholt
+gegen die Klassenregeln verstoßen hat. Im Rahmen unseres Klassen-Verhaltensystems
+wurden alle drei verfügbaren „Leben" verbraucht.</p>
+
+${reasonList.length>0 ? `
+<div class="incidents">
+  <div class="incidents-title">Konkrete Vorfälle des Tages:</div>
+  <ul>
+    ${reasonList.map(r=>`<li>${esc(r.reason||'Kein Grund angegeben')}</li>`).join('')}
+  </ul>
+</div>
+` : `
+<p><em>Keine konkreten Vorfälle dokumentiert.</em></p>
+`}
+
+<p>Wir bitten Sie, das Verhalten Ihres Kindes mit ihm zu besprechen und mit
+uns gemeinsam an einer Verbesserung zu arbeiten. Falls Sie Rückfragen haben
+oder ein Gespräch wünschen, können Sie uns gerne kontaktieren.</p>
+
+<p>Bitte unterschreiben Sie diese Mitteilung und geben Sie sie Ihrem Kind
+am nächsten Schultag wieder mit.</p>
+
+<p>Mit freundlichen Grüßen</p>
+
+<div class="signature">
+  <div class="sig-block">
+    ${sc.signatory?esc(sc.signatory):'Klassenlehrer:in'}<br>
+    <span style="font-size:9pt">Unterschrift Lehrkraft</span>
+  </div>
+  <div class="sig-block">
+    <br>
+    <span style="font-size:9pt">Unterschrift Erziehungsberechtigte</span>
+  </div>
+</div>
+
+</body></html>`;
+
+  const win=window.open('','_blank');
+  if(!win){toast('Pop-up blockiert – bitte erlauben');return}
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 function changeTeacherPw(){
   if(U.role!=='admin'){toast('Nur Admin');return}
   const oldPw=(S.passwords && S.passwords.teacher) || (window.TEACHER_PW || ADMIN_PW);
@@ -2420,6 +2642,9 @@ function renderStudents(){
         <div class="stu-hearts">${hearts}</div>
       </div>
       <div class="stu-actions">
+        ${s.lives<=0?`<button class="btn-restore" onclick="printParentLetter('${s.id}')" title="Eltern-Brief drucken" style="background:#3a2870;border-color:#fff;color:#fff">
+          🖨️
+        </button>`:''}
         ${s.lives>0
           ?`<button class="btn-life" onclick="askLife('${s.id}')">−</button>`
           :`<button class="btn-restore" onclick="restoreOne('${s.id}')">
@@ -2481,15 +2706,21 @@ function confirmLife(){
     }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
 }
+let lastBannerStudentId=null;
 function triggerAlert(s){
+  lastBannerStudentId=s.id;
   document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
   document.getElementById('notif-s').textContent=`Gemeldet von ${U.name}`;
   const b=document.getElementById('notif');
-  b.classList.add('on');clearTimeout(window._nb);window._nb=setTimeout(()=>b.classList.remove('on'),9000);
+  b.classList.add('on');clearTimeout(window._nb);window._nb=setTimeout(()=>b.classList.remove('on'),15000);
   sendPush('⚠️ Alle Leben verloren!',`${s.name} – gemeldet von ${U.name}`,'kq-lives-'+s.id);
   playAlarm();
 }
-function hideNotif(){document.getElementById('notif').classList.remove('on')}
+function hideNotif(){document.getElementById('notif').classList.remove('on');lastBannerStudentId=null;}
+function printFromBanner(){
+  if(lastBannerStudentId) printParentLetter(lastBannerStudentId);
+  else toast('Kein Schüler ausgewählt');
+}
 function restoreOne(id){
   if(ref){
     syncDot('spin');
