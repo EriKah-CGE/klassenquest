@@ -857,6 +857,7 @@ body.admin .admin-only{display:block}
       <button class="fchip" data-f="sev"      onclick="setF('sev')">⚠️ Krit.</button>
       <button class="fchip" data-f="life"     onclick="setF('life')">Herz</button>
       <button class="fchip" data-f="stars"    onclick="setF('stars')">Sterne</button>
+      <button class="fchip" data-f="notes"    onclick="setF('notes')">📝 Notizen</button>
       <button class="fchip" data-f="today"    onclick="setF('today')">Heute</button>
     </div>
     <div id="log-list"></div>
@@ -1038,6 +1039,33 @@ body.admin .admin-only{display:block}
     <div class="modal-sub">Für Tag <span id="pick-day">1</span></div>
     <div class="pick-list" id="pick-list"></div>
     <button class="btn btn-ghost btn-block" onclick="closePick()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- STUDENT NOTES MODAL -->
+<div class="modal-wrap" id="notes-modal">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title" id="notes-title">📝 Notizen</div>
+    <div class="modal-sub">Positives Verhalten und Bemerkungen festhalten</div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" id="notes-tab-pos" onclick="switchNoteTab('pos')" style="flex:1;border-radius:8px 8px 0 0">✨ Positives</button>
+      <button class="btn btn-ghost btn-sm" id="notes-tab-rem" onclick="switchNoteTab('rem')" style="flex:1;border-radius:8px 8px 0 0">📋 Bemerkungen</button>
+    </div>
+
+    <!-- Add new note -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <input class="inp" id="note-input" placeholder="Neue Notiz…" style="flex:1" maxlength="200">
+      <button class="btn btn-gold btn-sm" onclick="addStuNote()">+ Hinzufügen</button>
+    </div>
+
+    <!-- List -->
+    <div id="notes-list" style="max-height:300px;overflow-y:auto;margin-bottom:14px"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeStuNotes()">Schließen</button>
+    </div>
   </div>
 </div>
 
@@ -2310,6 +2338,176 @@ function loadSchoolFields(){
   showLogoPreview();
 }
 
+/* STUDENT NOTES */
+let currentNoteStuId=null;
+let currentNoteTab='pos'; // 'pos' = positives, 'rem' = bemerkungen
+
+function openStuNotes(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  currentNoteStuId=id;
+  currentNoteTab='pos';
+  document.getElementById('notes-title').textContent=`📝 ${s.name}`;
+  document.getElementById('note-input').value='';
+  switchNoteTab('pos');
+  document.getElementById('notes-modal').classList.add('on');
+}
+
+function closeStuNotes(){
+  currentNoteStuId=null;
+  document.getElementById('notes-modal').classList.remove('on');
+}
+
+function switchNoteTab(tab){
+  currentNoteTab=tab;
+  const pos=document.getElementById('notes-tab-pos');
+  const rem=document.getElementById('notes-tab-rem');
+  const input=document.getElementById('note-input');
+  if(tab==='pos'){
+    pos.style.background='rgba(74,222,128,.18)';
+    pos.style.borderColor='var(--green)';
+    rem.style.background='';
+    rem.style.borderColor='';
+    if(input)input.placeholder='Was war heute besonders gut? z.B. "Hat anderen geholfen"';
+  } else {
+    rem.style.background='rgba(245,200,66,.18)';
+    rem.style.borderColor='var(--gold)';
+    pos.style.background='';
+    pos.style.borderColor='';
+    if(input)input.placeholder='Bemerkung, z.B. "Wirkte müde, evtl. krank"';
+  }
+  renderStuNotes();
+}
+
+function getStuNoteArr(s,tab){
+  const key=tab==='pos'?'positives':'notes';
+  let arr=s[key];
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  return arr;
+}
+
+function renderStuNotes(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const list=document.getElementById('notes-list');
+  if(!list)return;
+  const arr=getStuNoteArr(s,currentNoteTab);
+  if(arr.length===0){
+    list.innerHTML=`<div class="empty" style="padding:18px"><span class="empty-icon">${currentNoteTab==='pos'?'✨':'📋'}</span>${currentNoteTab==='pos'?'Noch nichts Positives festgehalten.':'Noch keine Bemerkungen.'}</div>`;
+    return;
+  }
+  // Newest first
+  const sorted=[...arr].sort((a,b)=>(b.time||0)-(a.time||0));
+  list.innerHTML=sorted.map(n=>{
+    const t=n.time?new Date(n.time).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
+    const icon=currentNoteTab==='pos'?'✨':'📋';
+    const color=currentNoteTab==='pos'?'rgba(74,222,128,.10)':'rgba(245,200,66,.10)';
+    const border=currentNoteTab==='pos'?'rgba(74,222,128,.32)':'rgba(245,200,66,.32)';
+    return `<div style="background:${color};border:1px solid ${border};border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;gap:8px;align-items:flex-start">
+      <div style="font-size:1rem;flex-shrink:0">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.85rem;color:var(--text);font-weight:600;line-height:1.4;word-break:break-word">${esc(n.text||'')}</div>
+        <div style="font-size:.68rem;color:var(--text-3);font-weight:700;margin-top:3px">${esc(n.author||'?')} · ${t}</div>
+      </div>
+      <button class="btn-del" onclick="delStuNote('${n.id}')" title="Löschen">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addStuNote(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const input=document.getElementById('note-input');
+  const text=input.value.trim();
+  if(!text){toast('Notiz darf nicht leer sein');return}
+
+  const note={
+    id:'n'+Date.now()+Math.random().toString(16).slice(2,5),
+    text,
+    author:U.name,
+    time:Date.now()
+  };
+
+  const key=currentNoteTab==='pos'?'positives':'notes';
+
+  // Update local immediately
+  let arr=s[key];
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr.push(note);
+  s[key]=arr;
+
+  input.value='';
+  saveLocal();
+  renderStuNotes();
+  renderStudents();
+
+  // Log it (positive shows up in log too)
+  if(currentNoteTab==='pos'){
+    addLog({type:'positive',icon:'✨',text:`Positives: ${s.name}`,sub:`"${text}" · ${U.name}`});
+  } else {
+    addLog({type:'note',icon:'📋',text:`Bemerkung: ${s.name}`,sub:`"${text}" · ${U.name}`});
+  }
+
+  // Sync to Firebase (atomic, only this student's notes field)
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx][key];
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr.push(note);
+      arrFB[idx][key]=stuArr;
+      return arrFB;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+
+  toast(currentNoteTab==='pos'?'✨ Positives hinzugefügt':'📋 Bemerkung hinzugefügt');
+}
+
+function delStuNote(noteId){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s)return;
+  if(!confirm('Diese Notiz löschen?'))return;
+
+  const key=currentNoteTab==='pos'?'positives':'notes';
+  let arr=s[key];
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr=arr.filter(n=>n && n.id!==noteId);
+  s[key]=arr;
+
+  saveLocal();
+  renderStuNotes();
+  renderStudents();
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx][key];
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr=stuArr.filter(n=>n && n.id!==noteId);
+      arrFB[idx][key]=stuArr;
+      return arrFB;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+
+  toast('Notiz gelöscht');
+}
+
 // Default texts for parent letter (can be overridden via state)
 const LETTER_DEFAULTS = {
   intro: 'hiermit teilen wir Ihnen mit, dass Ihr Kind im heutigen Schultag wiederholt gegen die Klassenregeln verstoßen hat. Im Rahmen unseres Klassen-Verhaltenssystems wurden alle drei verfügbaren "Leben" verbraucht.',
@@ -2824,10 +3022,13 @@ function renderStudents(){
     return `<div class="stu-card${s.lives<=0?' zero':''}">
       <div class="stu-av" style="background:${c};border-color:${c}aa">${ini}</div>
       <div class="stu-info">
-        <div class="stu-name">${esc(s.name)}</div>
+        <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
         <div class="stu-hearts">${hearts}</div>
       </div>
       <div class="stu-actions">
+        <button class="btn-restore" onclick="openStuNotes('${s.id}')" title="Notizen" style="background:#5a3d8a;border-color:#fff;color:#fff">
+          📝
+        </button>
         ${s.lives<=0?`<button class="btn-restore" onclick="printParentLetter('${s.id}')" title="Eltern-Brief drucken" style="background:#3a2870;border-color:#fff;color:#fff">
           🖨️
         </button>`:''}
@@ -2842,6 +3043,19 @@ function renderStudents(){
       </div>
     </div>`;
   }).join('');
+}
+
+function countStuNotes(s){
+  let n=0;
+  if(s.positives){
+    const arr=Array.isArray(s.positives)?s.positives:Object.values(s.positives||{}).filter(x=>x);
+    n+=arr.length;
+  }
+  if(s.notes){
+    const arr=Array.isArray(s.notes)?s.notes:Object.values(s.notes||{}).filter(x=>x);
+    n+=arr.length;
+  }
+  return n;
 }
 function askLife(id){
   const s=S.students.find(x=>x.id===id);if(!s||s.lives<=0)return;
@@ -3045,6 +3259,7 @@ function renderLog(){
   if(logFilter==='sev')entries=entries.filter(e=>e.severe||e.type==='severe');
   else if(logFilter==='life')entries=entries.filter(e=>e.type==='life'||e.type==='severe');
   else if(logFilter==='stars')entries=entries.filter(e=>['stars','levelup','boss'].includes(e.type));
+  else if(logFilter==='notes')entries=entries.filter(e=>['positive','note'].includes(e.type));
   else if(logFilter==='today'){const t=new Date();t.setHours(0,0,0,0);entries=entries.filter(e=>e.time>=t.getTime())}
   if(!entries.length){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Keine Einträge.</div>`;return}
   el.innerHTML=entries.map(e=>{
