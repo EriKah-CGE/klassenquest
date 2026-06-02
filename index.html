@@ -14,6 +14,7 @@
 <script src="config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg-1:#0e0a26; --bg-2:#1a1340; --bg-3:#241758;
@@ -1037,6 +1038,41 @@ body.admin .admin-only{display:block}
     <div class="modal-sub">Für Tag <span id="pick-day">1</span></div>
     <div class="pick-list" id="pick-list"></div>
     <button class="btn btn-ghost btn-block" onclick="closePick()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- PARENT LETTER EDIT MODAL -->
+<div class="modal-wrap" id="letter-modal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">✉️ Eltern-Brief bearbeiten</div>
+    <div class="modal-sub" id="lt-sub">Du kannst alle Texte vor dem PDF-Export anpassen.</div>
+
+    <label class="lbl">Anrede</label>
+    <input class="inp mb10" id="lt-anrede" placeholder="Sehr geehrte Erziehungsberechtigte von ...">
+
+    <label class="lbl">Einleitung</label>
+    <textarea class="inp mb10" id="lt-intro" rows="3" style="min-height:60px;resize:vertical"></textarea>
+
+    <label class="lbl">Überschrift Vorfälle</label>
+    <input class="inp mb10" id="lt-vor-title" placeholder="Konkrete Vorfälle des Tages:">
+
+    <label class="lbl">Vorfälle (jede Zeile = ein Punkt)</label>
+    <textarea class="inp mb10" id="lt-vorf" rows="6" style="min-height:100px;resize:vertical"></textarea>
+
+    <label class="lbl">Bitte um Gespräch</label>
+    <textarea class="inp mb10" id="lt-bitte" rows="3" style="min-height:60px;resize:vertical"></textarea>
+
+    <label class="lbl">Unterschriften-Aufforderung</label>
+    <textarea class="inp mb10" id="lt-sign" rows="2" style="min-height:50px;resize:vertical"></textarea>
+
+    <label class="lbl">Schlussformel</label>
+    <input class="inp mb10" id="lt-greet" placeholder="Mit freundlichen Grüßen">
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeLetterModal()">Abbrechen</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetLetterDefaults()">↺ Standard</button>
+      <button class="btn btn-gold" onclick="generateLetterPDF()">📄 PDF erstellen</button>
+    </div>
   </div>
 </div>
 
@@ -2274,111 +2310,261 @@ function loadSchoolFields(){
   showLogoPreview();
 }
 
+// Default texts for parent letter (can be overridden via state)
+const LETTER_DEFAULTS = {
+  intro: 'hiermit teilen wir Ihnen mit, dass Ihr Kind im heutigen Schultag wiederholt gegen die Klassenregeln verstoßen hat. Im Rahmen unseres Klassen-Verhaltenssystems wurden alle drei verfügbaren "Leben" verbraucht.',
+  vorfTitle: 'Konkrete Vorfälle des Tages:',
+  bitte: 'Wir bitten Sie, das Verhalten Ihres Kindes mit ihm zu besprechen und mit uns gemeinsam an einer Verbesserung zu arbeiten. Falls Sie Rückfragen haben oder ein Gespräch wünschen, können Sie uns gerne kontaktieren.',
+  sign: 'Bitte unterschreiben Sie diese Mitteilung und geben Sie sie Ihrem Kind am nächsten Schultag wieder mit.',
+  greet: 'Mit freundlichen Grüßen'
+};
+
+let pendingLetterStudentId = null;
+
 function printParentLetter(studentId){
   const s=S.students.find(x=>x.id===studentId);
   if(!s){toast('Schüler nicht gefunden');return}
+  if(typeof window.jspdf==='undefined'){
+    toast('PDF-Bibliothek lädt noch, bitte gleich erneut');
+    return;
+  }
 
+  pendingLetterStudentId = studentId;
+
+  // Collect default content
   const sc=S.school||{};
   const dk='d'+S.currentDay;
-  const reasons = (s.reasons && s.reasons[dk]) || [];
-  // Filter out reasons – may be object form from Firebase
-  let reasonList=reasons;
-  if(!Array.isArray(reasonList)){
-    reasonList=(reasonList && typeof reasonList==='object')?Object.values(reasonList).filter(x=>x!=null):[];
+  let reasons=(s.reasons && s.reasons[dk])||[];
+  if(!Array.isArray(reasons)){
+    reasons=(reasons && typeof reasons==='object')?Object.values(reasons).filter(x=>x!=null):[];
   }
+  const reasonText = reasons.map(r=>r.reason||'Kein Grund angegeben').join('\n');
 
+  // Pre-fill the modal
+  document.getElementById('lt-sub').textContent = `Brief für ${s.name} · Du kannst alle Texte vor dem PDF-Export anpassen.`;
+  document.getElementById('lt-anrede').value = `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
+  document.getElementById('lt-intro').value = LETTER_DEFAULTS.intro;
+  document.getElementById('lt-vor-title').value = LETTER_DEFAULTS.vorfTitle;
+  document.getElementById('lt-vorf').value = reasonText || '(Keine Vorfälle dokumentiert)';
+  document.getElementById('lt-bitte').value = LETTER_DEFAULTS.bitte;
+  document.getElementById('lt-sign').value = LETTER_DEFAULTS.sign;
+  document.getElementById('lt-greet').value = LETTER_DEFAULTS.greet;
+
+  document.getElementById('letter-modal').classList.add('on');
+}
+
+function closeLetterModal(){
+  pendingLetterStudentId = null;
+  document.getElementById('letter-modal').classList.remove('on');
+}
+
+function resetLetterDefaults(){
+  if(!pendingLetterStudentId)return;
+  const s=S.students.find(x=>x.id===pendingLetterStudentId);
+  if(!s)return;
+  const dk='d'+S.currentDay;
+  let reasons=(s.reasons && s.reasons[dk])||[];
+  if(!Array.isArray(reasons)){
+    reasons=(reasons && typeof reasons==='object')?Object.values(reasons).filter(x=>x!=null):[];
+  }
+  const reasonText = reasons.map(r=>r.reason||'Kein Grund angegeben').join('\n');
+
+  document.getElementById('lt-anrede').value = `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
+  document.getElementById('lt-intro').value = LETTER_DEFAULTS.intro;
+  document.getElementById('lt-vor-title').value = LETTER_DEFAULTS.vorfTitle;
+  document.getElementById('lt-vorf').value = reasonText || '(Keine Vorfälle dokumentiert)';
+  document.getElementById('lt-bitte').value = LETTER_DEFAULTS.bitte;
+  document.getElementById('lt-sign').value = LETTER_DEFAULTS.sign;
+  document.getElementById('lt-greet').value = LETTER_DEFAULTS.greet;
+  toast('Standard wiederhergestellt');
+}
+
+function generateLetterPDF(){
+  if(!pendingLetterStudentId){closeLetterModal();return}
+  const s=S.students.find(x=>x.id===pendingLetterStudentId);
+  if(!s){closeLetterModal();return}
+
+  const sc=S.school||{};
   const today=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'long',year:'numeric'});
-  const headerLogo = sc.logoData ? `<img src="${sc.logoData}" alt="Logo" style="max-height:80px;max-width:200px;object-fit:contain">` : '';
 
-  const html = `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8">
-<title>Elterninfo · ${esc(s.name)}</title>
-<style>
-  @page { size:A4; margin:2cm 2.5cm; }
-  *{box-sizing:border-box}
-  body{font-family:'Helvetica',Arial,sans-serif;color:#000;font-size:12pt;line-height:1.5;margin:0;padding:0}
-  .header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:2px solid #000;margin-bottom:28px}
-  .header-info{font-size:9pt;line-height:1.4;color:#333}
-  .header-info strong{display:block;font-size:11pt;color:#000;margin-bottom:2px}
-  .date{text-align:right;margin-bottom:20px;font-size:11pt}
-  h1{font-size:14pt;margin:24px 0 10px 0;font-weight:bold}
-  p{margin:10px 0;text-align:justify}
-  .incidents{margin:14px 0;padding:14px 18px;background:#f4f4f4;border-left:4px solid #c33}
-  .incidents-title{font-weight:bold;margin-bottom:8px;font-size:11pt}
-  .incidents ul{margin:0;padding-left:18px}
-  .incidents li{margin:4px 0}
-  .signature{margin-top:48px;display:flex;justify-content:space-between;gap:40px;align-items:flex-end}
-  .sig-block{flex:1;border-top:1px solid #000;padding-top:6px;font-size:10pt;color:#333}
-  .name-blank{display:inline-block;border-bottom:1px solid #000;min-width:200px;padding:0 4px}
-  .print-btn{position:fixed;top:20px;right:20px;background:#1a0f3d;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);font-family:inherit;font-weight:bold}
-  .print-btn:hover{background:#2d1c5a}
-  @media print {
-    .print-btn{display:none}
-    body{margin:0}
+  // Read edited texts from modal
+  const anrede = document.getElementById('lt-anrede').value.trim() || `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
+  const intro  = document.getElementById('lt-intro').value.trim();
+  const vorfTitle = document.getElementById('lt-vor-title').value.trim();
+  const vorfText = document.getElementById('lt-vorf').value;
+  const bitte  = document.getElementById('lt-bitte').value.trim();
+  const signReq= document.getElementById('lt-sign').value.trim();
+  const greet  = document.getElementById('lt-greet').value.trim() || 'Mit freundlichen Grüßen';
+
+  // Parse vorfTextarea into list (split by line, ignore empty)
+  const reasonList = vorfText.split('\n').map(l=>l.trim()).filter(l=>l.length>0 && l!=='(Keine Vorfälle dokumentiert)');
+
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+
+    const pageW=210, marginL=25, marginR=25, marginT=25;
+    const contentW=pageW-marginL-marginR;
+    let y=marginT;
+
+    // ── HEADER ─────────────────────────────────────────────
+    let headerH=0;
+    if(sc.logoData){
+      try{
+        const logoMaxH=22;
+        const logoMaxW=50;
+        doc.addImage(sc.logoData, 'PNG', pageW-marginR-logoMaxW, y, logoMaxW, logoMaxH,'','FAST');
+        headerH=Math.max(headerH,logoMaxH);
+      }catch(imgErr){console.warn('Logo:',imgErr);}
+    }
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    let infoY=y;
+    if(sc.name){doc.text(sc.name, marginL, infoY+4);infoY+=5;}
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(60,60,60);
+    if(sc.address){doc.text(sc.address, marginL, infoY+4);infoY+=4;}
+    if(sc.contact){doc.text(sc.contact, marginL, infoY+4);infoY+=4;}
+    if(sc.className){
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(0,0,0);
+      doc.text('Klasse: '+sc.className, marginL, infoY+5);
+      infoY+=5;
+    }
+    headerH=Math.max(headerH, infoY-y+2);
+    y += headerH + 6;
+
+    doc.setDrawColor(0,0,0);
+    doc.setLineWidth(0.5);
+    doc.line(marginL, y, pageW-marginR, y);
+    y += 10;
+
+    // ── DATE ───────────────────────────────────────────────
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.setTextColor(0,0,0);
+    let dateStr=today;
+    if(sc.address){
+      const city=sc.address.split(',').pop().trim().replace(/^\d+\s+/,'');
+      if(city) dateStr=city+', den '+today;
+    }
+    doc.text(dateStr, pageW-marginR, y, {align:'right'});
+    y += 12;
+
+    // ── TITLE ──────────────────────────────────────────────
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(14);
+    doc.text('Mitteilung an die Erziehungsberechtigten', marginL, y);
+    y += 10;
+
+    // ── BODY ───────────────────────────────────────────────
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+
+    // Anrede with underline for last name
+    const anredeY = y;
+    doc.text(anrede, marginL, anredeY);
+    const nameWidth = doc.getTextWidth(anrede);
+    doc.line(marginL+nameWidth+2, anredeY+1, marginL+nameWidth+62, anredeY+1);
+    doc.text(',', marginL+nameWidth+64, anredeY);
+    y += 10;
+
+    // Intro paragraph
+    if(intro){
+      const p1Lines = doc.splitTextToSize(intro, contentW);
+      doc.text(p1Lines, marginL, y);
+      y += p1Lines.length * 5.5 + 4;
+    }
+
+    // Incidents box
+    if(reasonList.length>0 && vorfTitle){
+      // Pre-calculate height
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(10.5);
+      let boxH = 8; // title space
+      reasonList.forEach(r=>{
+        const lines = doc.splitTextToSize('•  '+r, contentW-12);
+        boxH += lines.length * 5 + 2;
+      });
+      boxH += 3;
+      const boxStartY = y;
+
+      // Draw box background and accent
+      doc.setFillColor(244,244,244);
+      doc.rect(marginL, boxStartY, contentW, boxH, 'F');
+      doc.setFillColor(204,51,51);
+      doc.rect(marginL, boxStartY, 1.5, boxH, 'F');
+
+      // Title
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.setTextColor(0,0,0);
+      doc.text(vorfTitle, marginL+5, boxStartY+5);
+      let yy = boxStartY + 8;
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(10.5);
+      reasonList.forEach(r=>{
+        const lines = doc.splitTextToSize('•  '+r, contentW-12);
+        doc.text(lines, marginL+8, yy+4);
+        yy += lines.length * 5 + 2;
+      });
+      y = boxStartY + boxH + 6;
+    } else if(vorfTitle){
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(10.5);
+      doc.setTextColor(100,100,100);
+      doc.text('Keine konkreten Vorfälle dokumentiert.', marginL, y);
+      doc.setTextColor(0,0,0);
+      y += 8;
+    }
+
+    // Bitte
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    if(bitte){
+      const p2Lines = doc.splitTextToSize(bitte, contentW);
+      doc.text(p2Lines, marginL, y);
+      y += p2Lines.length * 5.5 + 4;
+    }
+
+    // Sign request
+    if(signReq){
+      const p3Lines = doc.splitTextToSize(signReq, contentW);
+      doc.text(p3Lines, marginL, y);
+      y += p3Lines.length * 5.5 + 4;
+    }
+
+    // Greeting
+    doc.text(greet, marginL, y);
+    y += 25;
+
+    // ── SIGNATURES ─────────────────────────────────────────
+    const sigW = (contentW - 10) / 2;
+    const sigY = y;
+    doc.setDrawColor(0,0,0);
+    doc.setLineWidth(0.4);
+    doc.line(marginL, sigY, marginL+sigW, sigY);
+    doc.line(marginL+sigW+10, sigY, marginL+contentW, sigY);
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.text(sc.signatory||'Klassenlehrer:in', marginL, sigY+5);
+    doc.setFontSize(8);
+    doc.setTextColor(100,100,100);
+    doc.text('Unterschrift Lehrkraft', marginL, sigY+9);
+    doc.text('Unterschrift Erziehungsberechtigte', marginL+sigW+10, sigY+9);
+
+    // Save
+    const fileName = `Elternbrief_${s.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+    doc.save(fileName);
+    closeLetterModal();
+    toast('✓ PDF erstellt');
+  }catch(err){
+    console.error('PDF generation failed:',err);
+    toast('Fehler beim PDF erstellen');
   }
-</style></head>
-<body>
-<button class="print-btn" onclick="window.print()">🖨️ Drucken</button>
-
-<div class="header">
-  <div class="header-info">
-    ${sc.name?`<strong>${esc(sc.name)}</strong>`:''}
-    ${sc.address?`<div>${esc(sc.address)}</div>`:''}
-    ${sc.contact?`<div>${esc(sc.contact)}</div>`:''}
-    ${sc.className?`<div style="margin-top:6px">Klasse: <strong>${esc(sc.className)}</strong></div>`:''}
-  </div>
-  ${headerLogo?`<div>${headerLogo}</div>`:''}
-</div>
-
-<div class="date">${esc(sc.address?sc.address.split(',').pop().trim():'')}${sc.address?', den ':''}${today}</div>
-
-<h1>Mitteilung an die Erziehungsberechtigten</h1>
-
-<p>Sehr geehrte Erziehungsberechtigte
-von <span class="name-blank">${esc(s.name)} ___________________________</span>,</p>
-
-<p>hiermit teilen wir Ihnen mit, dass Ihr Kind im heutigen Schultag wiederholt
-gegen die Klassenregeln verstoßen hat. Im Rahmen unseres Klassen-Verhaltensystems
-wurden alle drei verfügbaren „Leben" verbraucht.</p>
-
-${reasonList.length>0 ? `
-<div class="incidents">
-  <div class="incidents-title">Konkrete Vorfälle des Tages:</div>
-  <ul>
-    ${reasonList.map(r=>`<li>${esc(r.reason||'Kein Grund angegeben')}</li>`).join('')}
-  </ul>
-</div>
-` : `
-<p><em>Keine konkreten Vorfälle dokumentiert.</em></p>
-`}
-
-<p>Wir bitten Sie, das Verhalten Ihres Kindes mit ihm zu besprechen und mit
-uns gemeinsam an einer Verbesserung zu arbeiten. Falls Sie Rückfragen haben
-oder ein Gespräch wünschen, können Sie uns gerne kontaktieren.</p>
-
-<p>Bitte unterschreiben Sie diese Mitteilung und geben Sie sie Ihrem Kind
-am nächsten Schultag wieder mit.</p>
-
-<p>Mit freundlichen Grüßen</p>
-
-<div class="signature">
-  <div class="sig-block">
-    ${sc.signatory?esc(sc.signatory):'Klassenlehrer:in'}<br>
-    <span style="font-size:9pt">Unterschrift Lehrkraft</span>
-  </div>
-  <div class="sig-block">
-    <br>
-    <span style="font-size:9pt">Unterschrift Erziehungsberechtigte</span>
-  </div>
-</div>
-
-</body></html>`;
-
-  const win=window.open('','_blank');
-  if(!win){toast('Pop-up blockiert – bitte erlauben');return}
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
 }
 
 function changeTeacherPw(){
