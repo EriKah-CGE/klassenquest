@@ -846,6 +846,21 @@ body.admin .admin-only{display:block}
     <div id="rw-list"></div>
   </div>
 
+  <!-- PAGE: SCHEDULE -->
+  <div class="page" id="pg-schedule">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="page-title" style="margin:0">Stundenplan</div>
+      <button class="btn btn-ghost btn-xs admin-only" onclick="editSchedule()">✏️ Bearbeiten</button>
+    </div>
+
+    <!-- Heute-Anzeige -->
+    <div id="sched-today" style="margin-bottom:18px"></div>
+
+    <!-- Wochenplan -->
+    <div class="section-label">Gesamte Woche</div>
+    <div id="sched-week"></div>
+  </div>
+
   <!-- PAGE: LOG -->
   <div class="page" id="pg-log">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -857,7 +872,7 @@ body.admin .admin-only{display:block}
       <button class="fchip" data-f="sev"      onclick="setF('sev')">⚠️ Krit.</button>
       <button class="fchip" data-f="life"     onclick="setF('life')">Herz</button>
       <button class="fchip" data-f="stars"    onclick="setF('stars')">Sterne</button>
-      <button class="fchip" data-f="notes"    onclick="setF('notes')">📝 Notizen</button>
+      <button class="fchip" data-f="notes"    onclick="setF('notes')">✨ Positives</button>
       <button class="fchip" data-f="today"    onclick="setF('today')">Heute</button>
     </div>
     <div id="log-list"></div>
@@ -991,6 +1006,10 @@ body.admin .admin-only{display:block}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
       Bank
     </button>
+    <button class="nb" data-pg="schedule" onclick="goPage('schedule')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Plan
+    </button>
     <button class="nb adm" data-pg="log" onclick="goPage('log')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Log
@@ -1042,26 +1061,53 @@ body.admin .admin-only{display:block}
   </div>
 </div>
 
+<!-- SCHEDULE EDIT MODAL -->
+<div class="modal-wrap" id="sched-modal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">📅 Stundenplan bearbeiten</div>
+    <div class="modal-sub">Pro Tag Fächer mit Start- und Endzeit eintragen.</div>
+
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="sched-day-tabs"></div>
+    <div id="sched-day-content"></div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeScheduleEdit()">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <!-- STUDENT NOTES MODAL -->
 <div class="modal-wrap" id="notes-modal">
   <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
     <div class="modal-title" id="notes-title">📝 Notizen</div>
-    <div class="modal-sub">Positives Verhalten und Bemerkungen festhalten</div>
+    <div class="modal-sub">Positives Verhalten und Eigenschaften festhalten</div>
 
     <!-- Tabs -->
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border)">
       <button class="btn btn-ghost btn-sm" id="notes-tab-pos" onclick="switchNoteTab('pos')" style="flex:1;border-radius:8px 8px 0 0">✨ Positives</button>
-      <button class="btn btn-ghost btn-sm" id="notes-tab-rem" onclick="switchNoteTab('rem')" style="flex:1;border-radius:8px 8px 0 0">📋 Bemerkungen</button>
+      <button class="btn btn-ghost btn-sm" id="notes-tab-traits" onclick="switchNoteTab('traits')" style="flex:1;border-radius:8px 8px 0 0">⭐ Eigenschaften</button>
     </div>
 
-    <!-- Add new note -->
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <input class="inp" id="note-input" placeholder="Neue Notiz…" style="flex:1" maxlength="200">
-      <button class="btn btn-gold btn-sm" onclick="addStuNote()">+ Hinzufügen</button>
+    <!-- POSITIVES TAB -->
+    <div id="notes-content-pos">
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <input class="inp" id="note-input-pos" placeholder="Was war heute besonders gut?" style="flex:1" maxlength="200">
+        <button class="btn btn-gold btn-sm" onclick="addStuPositive()">+ Hinzufügen</button>
+      </div>
+      <div id="notes-list-pos" style="max-height:300px;overflow-y:auto;margin-bottom:14px"></div>
     </div>
 
-    <!-- List -->
-    <div id="notes-list" style="max-height:300px;overflow-y:auto;margin-bottom:14px"></div>
+    <!-- TRAITS TAB -->
+    <div id="notes-content-traits" style="display:none">
+      <div style="font-size:.78rem;color:var(--text-2);margin-bottom:10px;line-height:1.4">
+        Dauerhafte Eigenschaften wie Funktionen oder gesundheitliche Hinweise.
+      </div>
+      <div id="traits-list" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;padding-top:10px;border-top:1px dashed var(--border)">
+        <input class="inp" id="trait-input" placeholder="Neue Eigenschaft (z.B. „Brillenträger:in")" style="flex:1" maxlength="80">
+        <button class="btn btn-ghost btn-sm" onclick="addCustomTrait()">+ Neu</button>
+      </div>
+    </div>
 
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeStuNotes()">Schließen</button>
@@ -1211,14 +1257,9 @@ let S={
   students:[],log:[],
   customCriteria:{},
   passwords:{},
-  school:{ // Schul-Briefkopf für Eltern-Briefe
-    name:'',
-    address:'',
-    contact:'',
-    className:'',
-    logoData:'', // Base64-Logo
-    signatory:'' // Name des Klassenlehrers für Unterschrift
-  },
+  school:{name:'',address:'',contact:'',className:'',logoData:'',signatory:''},
+  availableTraits:[], // [{id, label}] - global library of trait checkboxes
+  schedule:{}, // {mon:[{subj,start,end}], tue:[], ...}
 };
 let U={name:'',role:'subject'};
 let selRole='subject';
@@ -1258,7 +1299,8 @@ function initFB(){
         const fieldsToMerge=['totalStars','currentLevel','currentDay','currentLesson',
                              'lessonMode','completedLevels','checkedCriteria',
                              'rewards','dayRewards','bossProgress','defeatedBosses',
-                             'activeBossDay','customCriteria','passwords','school'];
+                             'activeBossDay','customCriteria','passwords','school',
+                             'availableTraits','schedule'];
         fieldsToMerge.forEach(k=>{
           if(d[k]!==undefined) S[k]=d[k];
         });
@@ -1356,6 +1398,8 @@ function push(){
       customCriteria:S.customCriteria||{},
       passwords:S.passwords||{},
       school:S.school||{},
+      availableTraits:Array.isArray(S.availableTraits)?S.availableTraits:[],
+      schedule:S.schedule||{},
     };
     ref.update(update).then(()=>syncDot('on')).catch(err=>{
       console.warn('[KQ] push failed:',err);
@@ -1389,6 +1433,27 @@ function fixState(){
   if(!S.lessonMode)S.lessonMode='double';
   if(!S.passwords || typeof S.passwords!=='object') S.passwords={};
   if(!S.school || typeof S.school!=='object') S.school={name:'',address:'',contact:'',className:'',logoData:'',signatory:''};
+  // Available traits library
+  if(!Array.isArray(S.availableTraits) || S.availableTraits.length===0){
+    // Defaults on first run
+    if(!S.availableTraits || S.availableTraits.length===0){
+      S.availableTraits=[
+        {id:'t1',label:'Klassensprecher:in'},
+        {id:'t2',label:'Stellvertreter:in'},
+        {id:'t3',label:'Darf alleine auf Toilette'},
+        {id:'t4',label:'Brillenträger:in'},
+        {id:'t5',label:'Hat Asthma / Inhalator'},
+        {id:'t6',label:'LRS'},
+        {id:'t7',label:'Dyskalkulie'},
+        {id:'t8',label:'Förderbedarf'}
+      ];
+    }
+    if(!Array.isArray(S.availableTraits)){
+      S.availableTraits=(S.availableTraits && typeof S.availableTraits==='object')?Object.values(S.availableTraits).filter(x=>x!=null):[];
+    }
+  }
+  // Schedule
+  if(!S.schedule || typeof S.schedule!=='object') S.schedule={};
   applyCustomCriteria();
 }
 function applyCustomCriteria(){
@@ -1667,6 +1732,7 @@ function goPage(name){
   if(name==='students')renderStudents();
   if(name==='bank')renderRewards();
   if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
+  if(name==='schedule')renderSchedule();
   if(name==='settings'){
     try{checkPush();}catch(e){}
     try{updatePushEnvInfo();}catch(e){}
@@ -1680,7 +1746,15 @@ function renderAll(){
   const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
   const hd=document.getElementById('hud-day'); if(hd) hd.textContent=S.currentDay;
   const db=document.getElementById('day-big'); if(db) db.textContent=S.currentDay;
-  const lb=document.getElementById('lesson-label-big'); if(lb) lb.textContent=lessonTypeLabel()+' '+lessonLabel();
+  const lb=document.getElementById('lesson-label-big');
+  if(lb){
+    let txt=lessonTypeLabel()+' '+lessonLabel();
+    try{
+      const cur=getCurrentLessonInfo();
+      if(cur) txt += ` · ${cur.subj}`;
+    }catch(e){}
+    lb.textContent=txt;
+  }
   try{updateLessonModeUI();}catch(e){}
   try{renderMap();}catch(e){console.warn('renderMap failed:',e)}
   try{renderCurInfo();}catch(e){console.warn('renderCurInfo failed:',e)}
@@ -2348,7 +2422,10 @@ function openStuNotes(id){
   currentNoteStuId=id;
   currentNoteTab='pos';
   document.getElementById('notes-title').textContent=`📝 ${s.name}`;
-  document.getElementById('note-input').value='';
+  const inPos=document.getElementById('note-input-pos');
+  if(inPos) inPos.value='';
+  const inTrait=document.getElementById('trait-input');
+  if(inTrait) inTrait.value='';
   switchNoteTab('pos');
   document.getElementById('notes-modal').classList.add('on');
 }
@@ -2361,151 +2438,467 @@ function closeStuNotes(){
 function switchNoteTab(tab){
   currentNoteTab=tab;
   const pos=document.getElementById('notes-tab-pos');
-  const rem=document.getElementById('notes-tab-rem');
-  const input=document.getElementById('note-input');
+  const traits=document.getElementById('notes-tab-traits');
+  const contPos=document.getElementById('notes-content-pos');
+  const contTraits=document.getElementById('notes-content-traits');
   if(tab==='pos'){
     pos.style.background='rgba(74,222,128,.18)';
     pos.style.borderColor='var(--green)';
-    rem.style.background='';
-    rem.style.borderColor='';
-    if(input)input.placeholder='Was war heute besonders gut? z.B. "Hat anderen geholfen"';
+    traits.style.background='';
+    traits.style.borderColor='';
+    if(contPos) contPos.style.display='';
+    if(contTraits) contTraits.style.display='none';
+    renderStuPositives();
   } else {
-    rem.style.background='rgba(245,200,66,.18)';
-    rem.style.borderColor='var(--gold)';
+    traits.style.background='rgba(245,200,66,.18)';
+    traits.style.borderColor='var(--gold)';
     pos.style.background='';
     pos.style.borderColor='';
-    if(input)input.placeholder='Bemerkung, z.B. "Wirkte müde, evtl. krank"';
+    if(contPos) contPos.style.display='none';
+    if(contTraits) contTraits.style.display='';
+    renderTraits();
   }
-  renderStuNotes();
 }
 
-function getStuNoteArr(s,tab){
-  const key=tab==='pos'?'positives':'notes';
-  let arr=s[key];
+function renderStuPositives(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const list=document.getElementById('notes-list-pos');
+  if(!list)return;
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  if(arr.length===0){
+    list.innerHTML=`<div class="empty" style="padding:18px"><span class="empty-icon">✨</span>Noch nichts Positives festgehalten.</div>`;
+    return;
+  }
+  const sorted=[...arr].sort((a,b)=>(b.time||0)-(a.time||0));
+  list.innerHTML=sorted.map(n=>{
+    const t=n.time?new Date(n.time).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
+    return `<div style="background:rgba(74,222,128,.10);border:1px solid rgba(74,222,128,.32);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;gap:8px;align-items:flex-start">
+      <div style="font-size:1rem;flex-shrink:0">✨</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.85rem;color:var(--text);font-weight:600;line-height:1.4;word-break:break-word">${esc(n.text||'')}</div>
+        <div style="font-size:.68rem;color:var(--text-3);font-weight:700;margin-top:3px">${esc(n.author||'?')} · ${t}</div>
+      </div>
+      <button class="btn-del" onclick="delStuPositive('${n.id}')" title="Löschen">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addStuPositive(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const input=document.getElementById('note-input-pos');
+  const text=input.value.trim();
+  if(!text){toast('Notiz darf nicht leer sein');return}
+
+  const note={id:'n'+Date.now()+Math.random().toString(16).slice(2,5),text,author:U.name,time:Date.now()};
+
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr.push(note);
+  s.positives=arr;
+
+  input.value='';
+  saveLocal();
+  renderStuPositives();
+  renderStudents();
+  addLog({type:'positive',icon:'✨',text:`Positives: ${s.name}`,sub:`"${text}" · ${U.name}`});
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx].positives;
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr.push(note);
+      arrFB[idx].positives=stuArr;
+      return arrFB;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+  toast('✨ Positives hinzugefügt');
+}
+
+function delStuPositive(noteId){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s)return;
+  if(!confirm('Diese Notiz löschen?'))return;
+
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr=arr.filter(n=>n && n.id!==noteId);
+  s.positives=arr;
+
+  saveLocal();
+  renderStuPositives();
+  renderStudents();
+
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx].positives;
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr=stuArr.filter(n=>n && n.id!==noteId);
+      arrFB[idx].positives=stuArr;
+      return arrFB;
+    }).catch(()=>{});
+  }
+  toast('Gelöscht');
+}
+
+// === TRAITS ===
+function getStudentTraits(s){
+  let arr=s.traits;
   if(!Array.isArray(arr)){
     arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
   }
   return arr;
 }
 
-function renderStuNotes(){
+function getAvailableTraits(){
+  let arr=S.availableTraits;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+    S.availableTraits=arr;
+  }
+  return arr;
+}
+
+function renderTraits(){
   const s=S.students.find(x=>x.id===currentNoteStuId);
   if(!s){closeStuNotes();return}
-  const list=document.getElementById('notes-list');
+  const list=document.getElementById('traits-list');
   if(!list)return;
-  const arr=getStuNoteArr(s,currentNoteTab);
-  if(arr.length===0){
-    list.innerHTML=`<div class="empty" style="padding:18px"><span class="empty-icon">${currentNoteTab==='pos'?'✨':'📋'}</span>${currentNoteTab==='pos'?'Noch nichts Positives festgehalten.':'Noch keine Bemerkungen.'}</div>`;
+  const available=getAvailableTraits();
+  const active=getStudentTraits(s);
+  if(available.length===0){
+    list.innerHTML=`<div class="empty" style="padding:14px"><span class="empty-icon">⭐</span>Noch keine Eigenschaften definiert. Trag unten welche ein.</div>`;
     return;
   }
-  // Newest first
-  const sorted=[...arr].sort((a,b)=>(b.time||0)-(a.time||0));
-  list.innerHTML=sorted.map(n=>{
-    const t=n.time?new Date(n.time).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
-    const icon=currentNoteTab==='pos'?'✨':'📋';
-    const color=currentNoteTab==='pos'?'rgba(74,222,128,.10)':'rgba(245,200,66,.10)';
-    const border=currentNoteTab==='pos'?'rgba(74,222,128,.32)':'rgba(245,200,66,.32)';
-    return `<div style="background:${color};border:1px solid ${border};border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;gap:8px;align-items:flex-start">
-      <div style="font-size:1rem;flex-shrink:0">${icon}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:.85rem;color:var(--text);font-weight:600;line-height:1.4;word-break:break-word">${esc(n.text||'')}</div>
-        <div style="font-size:.68rem;color:var(--text-3);font-weight:700;margin-top:3px">${esc(n.author||'?')} · ${t}</div>
+  list.innerHTML=available.map(t=>{
+    const checked=active.includes(t.id);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:5px;background:${checked?'rgba(245,200,66,.12)':'var(--glass)'};border:1px solid ${checked?'rgba(245,200,66,.36)':'var(--border-2)'};border-radius:var(--r);cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleTrait('${t.id}')" style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:.86rem;font-weight:600;color:var(--text);line-height:1.3;word-break:break-word">${esc(t.label)}</div>
+      ${U.role==='admin'?`<button class="btn-del" onclick="event.preventDefault();event.stopPropagation();delTraitFromLibrary('${t.id}')" title="Eigenschaft aus Liste löschen">✕</button>`:''}
+    </label>`;
+  }).join('');
+}
+
+function toggleTrait(traitId){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s)return;
+  let arr=getStudentTraits(s);
+  const idx=arr.indexOf(traitId);
+  if(idx===-1){
+    arr.push(traitId);
+  } else {
+    arr.splice(idx,1);
+  }
+  s.traits=arr;
+  saveLocal();
+  renderTraits();
+  renderStudents();
+
+  // Sync
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idxFB=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idxFB===-1)return current;
+      arrFB[idxFB].traits=arr;
+      return arrFB;
+    }).catch(()=>{});
+  }
+}
+
+function addCustomTrait(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const input=document.getElementById('trait-input');
+  const label=input.value.trim();
+  if(!label){toast('Bezeichnung darf nicht leer sein');return}
+
+  let arr=getAvailableTraits();
+  // Check duplicate
+  if(arr.some(t=>t.label.toLowerCase()===label.toLowerCase())){
+    toast('Diese Eigenschaft existiert schon');
+    return;
+  }
+
+  const newTrait={id:'t'+Date.now()+Math.random().toString(16).slice(2,5),label};
+  arr.push(newTrait);
+  S.availableTraits=arr;
+  input.value='';
+  saveLocal();
+  push();
+  renderTraits();
+  toast('✓ Eigenschaft hinzugefügt');
+}
+
+function delTraitFromLibrary(traitId){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const t=getAvailableTraits().find(x=>x.id===traitId);
+  if(!t)return;
+  if(!confirm(`Eigenschaft "${t.label}" aus der Liste löschen?\n\nDamit verschwindet sie auch bei allen Schülern.`))return;
+
+  // Remove from global list
+  S.availableTraits=getAvailableTraits().filter(x=>x.id!==traitId);
+  // Remove from all students
+  if(Array.isArray(S.students)){
+    S.students.forEach(stu=>{
+      let stuArr=getStudentTraits(stu);
+      stu.traits=stuArr.filter(id=>id!==traitId);
+    });
+  }
+  saveLocal();
+  push();
+  // Re-sync students
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      arrFB.forEach(stu=>{
+        if(stu){
+          let stuArr=stu.traits;
+          if(!Array.isArray(stuArr)) stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+          stu.traits=stuArr.filter(id=>id!==traitId);
+        }
+      });
+      return arrFB;
+    }).catch(()=>{});
+  }
+  renderTraits();
+  toast('Gelöscht');
+}
+
+// === SCHEDULE / STUNDENPLAN ===
+const DAY_KEYS = ['mon','tue','wed','thu','fri'];
+const DAY_LABELS = {mon:'Montag',tue:'Dienstag',wed:'Mittwoch',thu:'Donnerstag',fri:'Freitag'};
+const DAY_SHORT = {mon:'Mo',tue:'Di',wed:'Mi',thu:'Do',fri:'Fr'};
+
+function todayKey(){
+  // 0=Sunday, 1=Monday, ..., 6=Saturday
+  const d=new Date().getDay();
+  return DAY_KEYS[d-1] || null; // null on weekend
+}
+
+function getScheduleDay(dayKey){
+  if(!S.schedule || !S.schedule[dayKey]) return [];
+  let arr=S.schedule[dayKey];
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  // Sort by start time
+  return arr.slice().sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+}
+
+function timeToMinutes(t){
+  // "08:00" -> 480
+  if(!t || typeof t!=='string') return -1;
+  const [h,m]=t.split(':').map(Number);
+  if(isNaN(h) || isNaN(m)) return -1;
+  return h*60+m;
+}
+
+function getCurrentLessonInfo(){
+  // Returns {subj, start, end} for the lesson happening right now, or null
+  const dk=todayKey();
+  if(!dk) return null;
+  const lessons=getScheduleDay(dk);
+  if(lessons.length===0) return null;
+  const now=new Date();
+  const nowMin=now.getHours()*60+now.getMinutes();
+  for(const l of lessons){
+    const sM=timeToMinutes(l.start);
+    const eM=timeToMinutes(l.end);
+    if(sM>=0 && eM>=0 && nowMin>=sM && nowMin<eM) return l;
+  }
+  return null;
+}
+
+function getNextLessonInfo(){
+  const dk=todayKey();
+  if(!dk) return null;
+  const lessons=getScheduleDay(dk);
+  const now=new Date();
+  const nowMin=now.getHours()*60+now.getMinutes();
+  for(const l of lessons){
+    const sM=timeToMinutes(l.start);
+    if(sM>=0 && sM>nowMin) return l;
+  }
+  return null;
+}
+
+function renderSchedule(){
+  const todayEl=document.getElementById('sched-today');
+  const weekEl=document.getElementById('sched-week');
+  if(!todayEl || !weekEl) return;
+
+  // ── Heute-Anzeige ──
+  const dk=todayKey();
+  const todayName=new Date().toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'});
+
+  if(!dk){
+    todayEl.innerHTML=`<div class="sg" style="text-align:center">
+      <div style="font-size:1.4rem;margin-bottom:6px">🌴</div>
+      <div style="font-weight:800;margin-bottom:4px">Wochenende</div>
+      <div style="font-size:.78rem;color:var(--text-3)">${esc(todayName)}</div>
+    </div>`;
+  } else {
+    const lessons=getScheduleDay(dk);
+    const current=getCurrentLessonInfo();
+    const next=getNextLessonInfo();
+
+    let nowBox='';
+    if(current){
+      nowBox=`<div style="background:linear-gradient(135deg,rgba(74,222,128,.18),rgba(74,222,128,.06));border:1px solid rgba(74,222,128,.36);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:.7rem;font-weight:800;color:var(--green);margin-bottom:3px">▶ JETZT</div>
+        <div style="font-size:1.2rem;font-weight:900;color:var(--text);line-height:1.2">${esc(current.subj)}</div>
+        <div style="font-size:.78rem;color:var(--text-2);font-weight:700;margin-top:3px">${esc(current.start)} – ${esc(current.end)}</div>
+      </div>`;
+    } else if(next){
+      const mins=timeToMinutes(next.start)-(new Date().getHours()*60+new Date().getMinutes());
+      nowBox=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:.7rem;font-weight:800;color:var(--text-2);margin-bottom:3px">⏰ ALS NÄCHSTES</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--text);line-height:1.2">${esc(next.subj)}</div>
+        <div style="font-size:.78rem;color:var(--text-2);font-weight:700;margin-top:3px">${esc(next.start)} – ${esc(next.end)}${mins>0 && mins<120?` (in ${mins} Min)`:''}</div>
+      </div>`;
+    } else if(lessons.length>0){
+      nowBox=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;text-align:center">
+        <div style="font-size:1rem;margin-bottom:4px">✓</div>
+        <div style="font-weight:700;color:var(--text-2)">Unterricht für heute beendet</div>
+      </div>`;
+    }
+
+    let lessonsHtml='';
+    if(lessons.length===0){
+      lessonsHtml=`<div class="empty"><span class="empty-icon">📅</span>Für ${DAY_LABELS[dk]} kein Stundenplan eingerichtet.</div>`;
+    } else {
+      lessonsHtml=lessons.map(l=>{
+        const isCur=current && l.start===current.start && l.subj===current.subj;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${isCur?'rgba(74,222,128,.10)':'var(--glass)'};border:1px solid ${isCur?'rgba(74,222,128,.36)':'var(--border-2)'};border-radius:var(--r);margin-bottom:6px">
+          <div style="font-size:.75rem;font-weight:800;color:var(--text-2);min-width:90px">${esc(l.start)} – ${esc(l.end)}</div>
+          <div style="flex:1;font-size:.92rem;font-weight:700;color:var(--text)">${esc(l.subj)}</div>
+          ${isCur?'<div style="font-size:.62rem;font-weight:800;color:var(--green);padding:3px 8px;background:rgba(74,222,128,.18);border-radius:999px">JETZT</div>':''}
+        </div>`;
+      }).join('');
+    }
+
+    todayEl.innerHTML=`
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:1.1rem;font-weight:900;color:var(--text)">${DAY_LABELS[dk]}</div>
+        <div style="font-size:.72rem;color:var(--text-3);font-weight:700">${esc(todayName)}</div>
       </div>
-      <button class="btn-del" onclick="delStuNote('${n.id}')" title="Löschen">✕</button>
+      ${nowBox}
+      ${lessonsHtml}
+    `;
+  }
+
+  // ── Gesamte Woche ──
+  weekEl.innerHTML=DAY_KEYS.map(d=>{
+    const lessons=getScheduleDay(d);
+    const isToday=d===dk;
+    return `<div style="margin-bottom:14px;${isToday?'opacity:1':'opacity:.7'}">
+      <div style="font-size:.78rem;font-weight:800;color:${isToday?'var(--gold)':'var(--text-2)'};margin-bottom:5px;letter-spacing:.5px">${DAY_LABELS[d].toUpperCase()}${isToday?' · HEUTE':''}</div>
+      ${lessons.length===0
+        ?`<div style="font-size:.78rem;color:var(--text-3);font-style:italic;padding:8px 14px;background:var(--glass);border-radius:var(--r)">Keine Stunden</div>`
+        :lessons.map(l=>`<div style="display:flex;gap:10px;padding:7px 14px;background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);margin-bottom:4px;font-size:.82rem">
+            <div style="font-weight:700;color:var(--text-3);min-width:90px">${esc(l.start)}–${esc(l.end)}</div>
+            <div style="flex:1;font-weight:600;color:var(--text)">${esc(l.subj)}</div>
+          </div>`).join('')}
     </div>`;
   }).join('');
 }
 
-function addStuNote(){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s){closeStuNotes();return}
-  const input=document.getElementById('note-input');
-  const text=input.value.trim();
-  if(!text){toast('Notiz darf nicht leer sein');return}
+// === SCHEDULE EDIT ===
+let editScheduleDay='mon';
 
-  const note={
-    id:'n'+Date.now()+Math.random().toString(16).slice(2,5),
-    text,
-    author:U.name,
-    time:Date.now()
-  };
-
-  const key=currentNoteTab==='pos'?'positives':'notes';
-
-  // Update local immediately
-  let arr=s[key];
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  }
-  arr.push(note);
-  s[key]=arr;
-
-  input.value='';
-  saveLocal();
-  renderStuNotes();
-  renderStudents();
-
-  // Log it (positive shows up in log too)
-  if(currentNoteTab==='pos'){
-    addLog({type:'positive',icon:'✨',text:`Positives: ${s.name}`,sub:`"${text}" · ${U.name}`});
-  } else {
-    addLog({type:'note',icon:'📋',text:`Bemerkung: ${s.name}`,sub:`"${text}" · ${U.name}`});
-  }
-
-  // Sync to Firebase (atomic, only this student's notes field)
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
-      if(idx===-1)return current;
-      let stuArr=arrFB[idx][key];
-      if(!Array.isArray(stuArr)){
-        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
-      }
-      stuArr.push(note);
-      arrFB[idx][key]=stuArr;
-      return arrFB;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
-  }
-
-  toast(currentNoteTab==='pos'?'✨ Positives hinzugefügt':'📋 Bemerkung hinzugefügt');
+function editSchedule(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  editScheduleDay='mon';
+  document.getElementById('sched-modal').classList.add('on');
+  renderScheduleEdit();
 }
 
-function delStuNote(noteId){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s)return;
-  if(!confirm('Diese Notiz löschen?'))return;
+function closeScheduleEdit(){
+  document.getElementById('sched-modal').classList.remove('on');
+  renderSchedule();
+}
 
-  const key=currentNoteTab==='pos'?'positives':'notes';
-  let arr=s[key];
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+function renderScheduleEdit(){
+  const tabsEl=document.getElementById('sched-day-tabs');
+  const contEl=document.getElementById('sched-day-content');
+  if(!tabsEl || !contEl) return;
+
+  tabsEl.innerHTML=DAY_KEYS.map(d=>{
+    const sel=d===editScheduleDay;
+    return `<button class="btn btn-ghost btn-sm" onclick="setEditScheduleDay('${d}')" style="${sel?'background:rgba(245,200,66,.18);border-color:var(--gold);color:var(--gold)':''}">${DAY_SHORT[d]}</button>`;
+  }).join('');
+
+  const lessons=getScheduleDay(editScheduleDay);
+  contEl.innerHTML=`
+    <div style="margin-bottom:10px;font-weight:800;font-size:.92rem">${DAY_LABELS[editScheduleDay]}</div>
+    ${lessons.length===0?`<div class="empty"><span class="empty-icon">📅</span>Noch keine Stunden.</div>`:lessons.map((l,i)=>`
+      <div style="display:flex;gap:6px;align-items:center;background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;flex-wrap:wrap">
+        <input class="inp" value="${esc(l.start||'')}" onchange="updateLesson(${i},'start',this.value)" placeholder="08:00" style="width:70px;font-size:.78rem;padding:6px 8px;text-align:center">
+        <span style="color:var(--text-3)">–</span>
+        <input class="inp" value="${esc(l.end||'')}" onchange="updateLesson(${i},'end',this.value)" placeholder="09:30" style="width:70px;font-size:.78rem;padding:6px 8px;text-align:center">
+        <input class="inp" value="${esc(l.subj||'')}" onchange="updateLesson(${i},'subj',this.value)" placeholder="Fach" style="flex:1;min-width:120px;font-size:.82rem;padding:6px 10px">
+        <button class="btn-del" onclick="removeLesson(${i})">✕</button>
+      </div>
+    `).join('')}
+    <button class="btn btn-gold btn-block btn-sm" onclick="addLesson()" style="margin-top:8px">+ Stunde hinzufügen</button>
+  `;
+}
+
+function setEditScheduleDay(d){
+  editScheduleDay=d;
+  renderScheduleEdit();
+}
+
+function addLesson(){
+  if(!S.schedule) S.schedule={};
+  let arr=S.schedule[editScheduleDay];
+  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  arr.push({start:'08:00',end:'09:30',subj:'Neues Fach'});
+  S.schedule[editScheduleDay]=arr;
+  push();
+  renderScheduleEdit();
+}
+
+function updateLesson(idx,field,value){
+  if(!S.schedule || !S.schedule[editScheduleDay]) return;
+  let arr=S.schedule[editScheduleDay];
+  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  if(arr[idx]){
+    arr[idx][field]=value;
+    S.schedule[editScheduleDay]=arr;
+    push();
   }
-  arr=arr.filter(n=>n && n.id!==noteId);
-  s[key]=arr;
+}
 
-  saveLocal();
-  renderStuNotes();
-  renderStudents();
-
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
-      if(idx===-1)return current;
-      let stuArr=arrFB[idx][key];
-      if(!Array.isArray(stuArr)){
-        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
-      }
-      stuArr=stuArr.filter(n=>n && n.id!==noteId);
-      arrFB[idx][key]=stuArr;
-      return arrFB;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
-  }
-
-  toast('Notiz gelöscht');
+function removeLesson(idx){
+  if(!S.schedule || !S.schedule[editScheduleDay]) return;
+  if(!confirm('Stunde löschen?')) return;
+  let arr=S.schedule[editScheduleDay];
+  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  arr.splice(idx,1);
+  S.schedule[editScheduleDay]=arr;
+  push();
+  renderScheduleEdit();
 }
 
 // Default texts for parent letter (can be overridden via state)
@@ -3019,11 +3412,20 @@ function renderStudents(){
       `<svg class="sheart${i>=s.lives?' lost':''}" viewBox="0 0 24 24" fill="#f87171">
         <path d="M12 21s-7-4.35-9.5-8.5C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8.5C19 16.65 12 21 12 21z"/>
       </svg>`).join('');
+    // Active traits as badges
+    const traitIds=getStudentTraits(s);
+    const traitLib=getAvailableTraits();
+    const traitBadges=traitIds.map(tid=>{
+      const t=traitLib.find(x=>x.id===tid);
+      return t?`<span style="display:inline-block;font-size:.62rem;font-weight:700;background:rgba(245,200,66,.16);color:var(--gold);border:1px solid rgba(245,200,66,.36);padding:1px 6px;border-radius:999px;margin-right:3px;margin-top:2px;line-height:1.4;white-space:nowrap">${esc(t.label)}</span>`:'';
+    }).join('');
+
     return `<div class="stu-card${s.lives<=0?' zero':''}">
       <div class="stu-av" style="background:${c};border-color:${c}aa">${ini}</div>
       <div class="stu-info">
         <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
         <div class="stu-hearts">${hearts}</div>
+        ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
       </div>
       <div class="stu-actions">
         <button class="btn-restore" onclick="openStuNotes('${s.id}')" title="Notizen" style="background:#5a3d8a;border-color:#fff;color:#fff">
@@ -3051,8 +3453,8 @@ function countStuNotes(s){
     const arr=Array.isArray(s.positives)?s.positives:Object.values(s.positives||{}).filter(x=>x);
     n+=arr.length;
   }
-  if(s.notes){
-    const arr=Array.isArray(s.notes)?s.notes:Object.values(s.notes||{}).filter(x=>x);
+  if(s.traits){
+    const arr=Array.isArray(s.traits)?s.traits:Object.values(s.traits||{}).filter(x=>x);
     n+=arr.length;
   }
   return n;
@@ -3259,7 +3661,7 @@ function renderLog(){
   if(logFilter==='sev')entries=entries.filter(e=>e.severe||e.type==='severe');
   else if(logFilter==='life')entries=entries.filter(e=>e.type==='life'||e.type==='severe');
   else if(logFilter==='stars')entries=entries.filter(e=>['stars','levelup','boss'].includes(e.type));
-  else if(logFilter==='notes')entries=entries.filter(e=>['positive','note'].includes(e.type));
+  else if(logFilter==='notes')entries=entries.filter(e=>['positive'].includes(e.type));
   else if(logFilter==='today'){const t=new Date();t.setHours(0,0,0,0);entries=entries.filter(e=>e.time>=t.getTime())}
   if(!entries.length){el.innerHTML=`<div class="empty"><span class="empty-icon">📋</span>Keine Einträge.</div>`;return}
   el.innerHTML=entries.map(e=>{
