@@ -671,6 +671,72 @@ body.admin .admin-only{display:block}
 .used-badge{font-size:.58rem;font-weight:800;background:var(--text-3);
   color:#fff;padding:2px 7px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
 
+/* SCHEDULE GRID */
+.sch-grid{
+  display:grid;
+  grid-template-columns:34px repeat(5,1fr);
+  gap:3px;
+  background:var(--glass);
+  border:1px solid var(--border-2);
+  border-radius:var(--r);
+  padding:6px;
+  position:relative;
+}
+.sch-head{
+  font-size:.66rem;font-weight:800;color:var(--text-2);
+  text-align:center;padding:6px 0 8px 0;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);
+}
+.sch-head.today{color:var(--gold);background:rgba(245,200,66,.08);border-radius:6px 6px 0 0}
+.sch-time-col{position:relative}
+.sch-time-mark{
+  position:absolute;left:0;right:0;
+  font-size:.58rem;color:var(--text-3);font-weight:700;
+  text-align:right;padding-right:4px;
+  border-top:1px dashed rgba(255,255,255,.08);
+  pointer-events:none;
+}
+.sch-day-col{
+  position:relative;
+  background:rgba(255,255,255,.02);
+  border-radius:6px;
+  min-height:100%;
+}
+.sch-day-col.today{background:rgba(245,200,66,.05)}
+.sch-day-col.drop-over{background:rgba(74,222,128,.10);outline:1px dashed var(--green)}
+.sch-block{
+  position:absolute;left:2px;right:2px;
+  background:rgba(74,127,255,.18);
+  border:1px solid rgba(74,127,255,.42);
+  border-left:3px solid rgba(74,127,255,.85);
+  border-radius:5px;
+  padding:4px 6px;
+  cursor:grab;
+  overflow:hidden;
+  user-select:none;
+  transition:transform .12s,box-shadow .12s;
+  font-size:.72rem;
+}
+.sch-block:hover{transform:scale(1.02);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2}
+.sch-block.dragging{opacity:.4;cursor:grabbing;transform:scale(1.04);z-index:5}
+.sch-block.current{
+  border-color:var(--green);border-left-color:var(--green);
+  box-shadow:0 0 0 1px rgba(74,222,128,.5),0 0 14px rgba(74,222,128,.3);
+}
+.sch-block-subj{font-weight:800;color:#fff;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sch-block-time{font-size:.6rem;color:rgba(255,255,255,.75);font-weight:700;margin-top:1px}
+.sch-now-line{
+  position:absolute;left:34px;right:6px;
+  height:0;border-top:2px solid var(--red);
+  z-index:3;pointer-events:none;
+}
+.sch-now-line::before{
+  content:'JETZT';position:absolute;left:-4px;top:-9px;
+  font-size:.55rem;font-weight:800;color:var(--red);
+  background:var(--surface,#0a0721);padding:1px 5px;border-radius:6px;
+  border:1px solid var(--red);
+}
+
 /* LOG */
 .log-item{
   display:flex;gap:8px;align-items:flex-start;
@@ -848,17 +914,25 @@ body.admin .admin-only{display:block}
 
   <!-- PAGE: SCHEDULE -->
   <div class="page" id="pg-schedule">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
       <div class="page-title" style="margin:0">Stundenplan</div>
-      <button class="btn btn-ghost btn-xs admin-only" onclick="editSchedule()">✏️ Bearbeiten</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-xs admin-only" onclick="addLessonQuick()">+ Stunde</button>
+        <button class="btn btn-ghost btn-xs admin-only" onclick="editScheduleSettings()">⚙️</button>
+      </div>
     </div>
 
-    <!-- Heute-Anzeige -->
-    <div id="sched-today" style="margin-bottom:18px"></div>
+    <!-- Today summary -->
+    <div id="sched-today-bar" style="margin-bottom:10px"></div>
 
-    <!-- Wochenplan -->
-    <div class="section-label">Gesamte Woche</div>
-    <div id="sched-week"></div>
+    <!-- Visual grid -->
+    <div id="sched-grid-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div id="sched-grid"></div>
+    </div>
+
+    <div class="admin-only" style="margin-top:10px;font-size:.7rem;color:var(--text-3);text-align:center">
+      Tippe einen Block an um ihn zu bearbeiten · Halte gedrückt und ziehe zum Verschieben
+    </div>
   </div>
 
   <!-- PAGE: LOG -->
@@ -1061,17 +1135,39 @@ body.admin .admin-only{display:block}
   </div>
 </div>
 
-<!-- SCHEDULE EDIT MODAL -->
+<!-- SCHEDULE LESSON EDIT MODAL -->
 <div class="modal-wrap" id="sched-modal">
-  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
-    <div class="modal-title">📅 Stundenplan bearbeiten</div>
-    <div class="modal-sub">Pro Tag Fächer mit Start- und Endzeit eintragen.</div>
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="sl-title">📅 Stunde bearbeiten</div>
+    <div class="modal-sub" id="sl-sub">Zeit und Fach festlegen</div>
 
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="sched-day-tabs"></div>
-    <div id="sched-day-content"></div>
+    <label class="lbl">Wochentag</label>
+    <select class="inp mb10" id="sl-day">
+      <option value="mon">Montag</option>
+      <option value="tue">Dienstag</option>
+      <option value="wed">Mittwoch</option>
+      <option value="thu">Donnerstag</option>
+      <option value="fri">Freitag</option>
+    </select>
+
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1">
+        <label class="lbl">Von</label>
+        <input type="time" class="inp" id="sl-start">
+      </div>
+      <div style="flex:1">
+        <label class="lbl">Bis</label>
+        <input type="time" class="inp" id="sl-end">
+      </div>
+    </div>
+
+    <label class="lbl">Fach</label>
+    <input class="inp mb10" id="sl-subj" placeholder="z.B. Mathematik" maxlength="40">
 
     <div class="btn-row" style="margin-top:14px">
-      <button class="btn btn-ghost" onclick="closeScheduleEdit()">Schließen</button>
+      <button class="btn btn-ghost" onclick="closeLessonEdit()">Abbrechen</button>
+      <button class="btn btn-red btn-sm" id="sl-del" onclick="deleteLessonFromEdit()" style="display:none">Löschen</button>
+      <button class="btn btn-gold" onclick="saveLessonEdit()">Speichern</button>
     </div>
   </div>
 </div>
@@ -2743,162 +2839,347 @@ function getNextLessonInfo(){
 }
 
 function renderSchedule(){
-  const todayEl=document.getElementById('sched-today');
-  const weekEl=document.getElementById('sched-week');
-  if(!todayEl || !weekEl) return;
+  const grid=document.getElementById('sched-grid');
+  const todayBar=document.getElementById('sched-today-bar');
+  if(!grid) return;
 
-  // ── Heute-Anzeige ──
+  // ── Today summary bar ──
   const dk=todayKey();
-  const todayName=new Date().toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'});
-
-  if(!dk){
-    todayEl.innerHTML=`<div class="sg" style="text-align:center">
-      <div style="font-size:1.4rem;margin-bottom:6px">🌴</div>
-      <div style="font-weight:800;margin-bottom:4px">Wochenende</div>
-      <div style="font-size:.78rem;color:var(--text-3)">${esc(todayName)}</div>
-    </div>`;
-  } else {
-    const lessons=getScheduleDay(dk);
-    const current=getCurrentLessonInfo();
-    const next=getNextLessonInfo();
-
-    let nowBox='';
-    if(current){
-      nowBox=`<div style="background:linear-gradient(135deg,rgba(74,222,128,.18),rgba(74,222,128,.06));border:1px solid rgba(74,222,128,.36);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
-        <div style="font-size:.7rem;font-weight:800;color:var(--green);margin-bottom:3px">▶ JETZT</div>
-        <div style="font-size:1.2rem;font-weight:900;color:var(--text);line-height:1.2">${esc(current.subj)}</div>
-        <div style="font-size:.78rem;color:var(--text-2);font-weight:700;margin-top:3px">${esc(current.start)} – ${esc(current.end)}</div>
-      </div>`;
-    } else if(next){
-      const mins=timeToMinutes(next.start)-(new Date().getHours()*60+new Date().getMinutes());
-      nowBox=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px">
-        <div style="font-size:.7rem;font-weight:800;color:var(--text-2);margin-bottom:3px">⏰ ALS NÄCHSTES</div>
-        <div style="font-size:1.05rem;font-weight:800;color:var(--text);line-height:1.2">${esc(next.subj)}</div>
-        <div style="font-size:.78rem;color:var(--text-2);font-weight:700;margin-top:3px">${esc(next.start)} – ${esc(next.end)}${mins>0 && mins<120?` (in ${mins} Min)`:''}</div>
-      </div>`;
-    } else if(lessons.length>0){
-      nowBox=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;text-align:center">
-        <div style="font-size:1rem;margin-bottom:4px">✓</div>
-        <div style="font-weight:700;color:var(--text-2)">Unterricht für heute beendet</div>
-      </div>`;
-    }
-
-    let lessonsHtml='';
-    if(lessons.length===0){
-      lessonsHtml=`<div class="empty"><span class="empty-icon">📅</span>Für ${DAY_LABELS[dk]} kein Stundenplan eingerichtet.</div>`;
+  if(todayBar){
+    if(!dk){
+      todayBar.innerHTML=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:10px 14px;text-align:center;font-size:.82rem;font-weight:700;color:var(--text-2)">🌴 Wochenende – kein Unterricht</div>`;
     } else {
-      lessonsHtml=lessons.map(l=>{
-        const isCur=current && l.start===current.start && l.subj===current.subj;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${isCur?'rgba(74,222,128,.10)':'var(--glass)'};border:1px solid ${isCur?'rgba(74,222,128,.36)':'var(--border-2)'};border-radius:var(--r);margin-bottom:6px">
-          <div style="font-size:.75rem;font-weight:800;color:var(--text-2);min-width:90px">${esc(l.start)} – ${esc(l.end)}</div>
-          <div style="flex:1;font-size:.92rem;font-weight:700;color:var(--text)">${esc(l.subj)}</div>
-          ${isCur?'<div style="font-size:.62rem;font-weight:800;color:var(--green);padding:3px 8px;background:rgba(74,222,128,.18);border-radius:999px">JETZT</div>':''}
+      const cur=getCurrentLessonInfo();
+      const next=getNextLessonInfo();
+      let html='';
+      if(cur){
+        html=`<div style="background:linear-gradient(135deg,rgba(74,222,128,.18),rgba(74,222,128,.06));border:1px solid rgba(74,222,128,.36);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:.6rem;font-weight:800;color:var(--green);background:rgba(74,222,128,.20);padding:3px 8px;border-radius:999px">JETZT</div>
+          <div style="flex:1"><div style="font-weight:800">${esc(cur.subj)}</div><div style="font-size:.7rem;color:var(--text-2);font-weight:700">${esc(cur.start)} – ${esc(cur.end)}</div></div>
         </div>`;
-      }).join('');
+      } else if(next){
+        const mins=timeToMinutes(next.start)-(new Date().getHours()*60+new Date().getMinutes());
+        html=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:.6rem;font-weight:800;color:var(--text-2);background:rgba(255,255,255,.08);padding:3px 8px;border-radius:999px">NÄCHSTE</div>
+          <div style="flex:1"><div style="font-weight:800">${esc(next.subj)}</div><div style="font-size:.7rem;color:var(--text-2);font-weight:700">${esc(next.start)} – ${esc(next.end)}${mins>0 && mins<120?` · in ${mins} Min`:''}</div></div>
+        </div>`;
+      } else {
+        html=`<div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:10px 14px;font-size:.82rem;text-align:center;color:var(--text-2)">✓ Unterricht für heute beendet</div>`;
+      }
+      todayBar.innerHTML=html;
     }
-
-    todayEl.innerHTML=`
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
-        <div style="font-size:1.1rem;font-weight:900;color:var(--text)">${DAY_LABELS[dk]}</div>
-        <div style="font-size:.72rem;color:var(--text-3);font-weight:700">${esc(todayName)}</div>
-      </div>
-      ${nowBox}
-      ${lessonsHtml}
-    `;
   }
 
-  // ── Gesamte Woche ──
-  weekEl.innerHTML=DAY_KEYS.map(d=>{
+  // ── Visual grid ──
+  // Determine time range
+  let minMin=8*60, maxMin=15*60; // default 8:00-15:00
+  DAY_KEYS.forEach(d=>{
+    getScheduleDay(d).forEach(l=>{
+      const s=timeToMinutes(l.start), e=timeToMinutes(l.end);
+      if(s>=0) minMin=Math.min(minMin,s);
+      if(e>=0) maxMin=Math.max(maxMin,e);
+    });
+  });
+  // Round to whole hours
+  minMin=Math.floor(minMin/60)*60;
+  maxMin=Math.ceil(maxMin/60)*60;
+  const totalMin=maxMin-minMin;
+
+  // Pixel scaling: 1.2px per minute = 72px per hour
+  const PX_PER_MIN=1.2;
+  const gridH=totalMin*PX_PER_MIN;
+
+  // Header row + grid
+  let html=`<div class="sch-grid" style="grid-template-rows:auto ${gridH}px">`;
+  // Top-left corner
+  html+=`<div class="sch-head"></div>`;
+  // Day headers
+  DAY_KEYS.forEach(d=>{
+    html+=`<div class="sch-head${d===dk?' today':''}">${DAY_SHORT[d]}</div>`;
+  });
+
+  // Time column
+  html+=`<div class="sch-time-col">`;
+  for(let m=minMin; m<=maxMin; m+=60){
+    const top=(m-minMin)*PX_PER_MIN;
+    const h=Math.floor(m/60);
+    html+=`<div class="sch-time-mark" style="top:${top}px">${String(h).padStart(2,'0')}:00</div>`;
+  }
+  html+=`</div>`;
+
+  // Day columns with lesson blocks
+  DAY_KEYS.forEach(d=>{
     const lessons=getScheduleDay(d);
     const isToday=d===dk;
-    return `<div style="margin-bottom:14px;${isToday?'opacity:1':'opacity:.7'}">
-      <div style="font-size:.78rem;font-weight:800;color:${isToday?'var(--gold)':'var(--text-2)'};margin-bottom:5px;letter-spacing:.5px">${DAY_LABELS[d].toUpperCase()}${isToday?' · HEUTE':''}</div>
-      ${lessons.length===0
-        ?`<div style="font-size:.78rem;color:var(--text-3);font-style:italic;padding:8px 14px;background:var(--glass);border-radius:var(--r)">Keine Stunden</div>`
-        :lessons.map(l=>`<div style="display:flex;gap:10px;padding:7px 14px;background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);margin-bottom:4px;font-size:.82rem">
-            <div style="font-weight:700;color:var(--text-3);min-width:90px">${esc(l.start)}–${esc(l.end)}</div>
-            <div style="flex:1;font-weight:600;color:var(--text)">${esc(l.subj)}</div>
-          </div>`).join('')}
-    </div>`;
-  }).join('');
+    html+=`<div class="sch-day-col${isToday?' today':''}" data-day="${d}" ondragover="schDragOver(event,'${d}')" ondrop="schDrop(event,'${d}')" ondragleave="schDragLeave(event)">`;
+
+    lessons.forEach((l,i)=>{
+      const s=timeToMinutes(l.start);
+      const e=timeToMinutes(l.end);
+      if(s<0 || e<0 || e<=s) return;
+      const top=(s-minMin)*PX_PER_MIN;
+      const h=(e-s)*PX_PER_MIN;
+      const color=subjectColor(l.subj);
+      const isCur = isToday && (() => {
+        const now=new Date().getHours()*60+new Date().getMinutes();
+        return now>=s && now<e;
+      })();
+      const isAdmin = U.role==='admin';
+      html+=`<div class="sch-block${isCur?' current':''}" 
+        style="top:${top}px;height:${h-2}px;background:${color.bg};border-color:${color.border};border-left-color:${color.accent}" 
+        ${isAdmin?`draggable="true" ondragstart="schDragStart(event,'${d}',${i})" ondragend="schDragEnd(event)"`:''}
+        onclick="openLessonEdit('${d}',${i})">
+        <div class="sch-block-subj">${esc(l.subj||'(Fach)')}</div>
+        <div class="sch-block-time">${esc(l.start)}–${esc(l.end)}</div>
+      </div>`;
+    });
+
+    // Now indicator on today
+    if(isToday){
+      const now=new Date().getHours()*60+new Date().getMinutes();
+      if(now>=minMin && now<=maxMin){
+        const top=(now-minMin)*PX_PER_MIN;
+        html+=`<div style="position:absolute;left:0;right:0;top:${top}px;border-top:2px solid var(--red);z-index:4;pointer-events:none"><div style="position:absolute;left:-2px;top:-4px;width:8px;height:8px;background:var(--red);border-radius:50%"></div></div>`;
+      }
+    }
+
+    html+=`</div>`;
+  });
+
+  html+=`</div>`;
+  grid.innerHTML=html;
 }
 
-// === SCHEDULE EDIT ===
-let editScheduleDay='mon';
-
-function editSchedule(){
-  if(U.role!=='admin'){toast('Nur Admin');return}
-  editScheduleDay='mon';
-  document.getElementById('sched-modal').classList.add('on');
-  renderScheduleEdit();
+// Color per subject (consistent across renders)
+const SUBJECT_PALETTE=[
+  {bg:'rgba(74,127,255,.20)',border:'rgba(74,127,255,.5)',accent:'#4a7fff'},
+  {bg:'rgba(245,200,66,.18)',border:'rgba(245,200,66,.5)',accent:'#f5c842'},
+  {bg:'rgba(74,222,128,.18)',border:'rgba(74,222,128,.5)',accent:'#4ade80'},
+  {bg:'rgba(248,113,113,.18)',border:'rgba(248,113,113,.5)',accent:'#f87171'},
+  {bg:'rgba(192,132,252,.20)',border:'rgba(192,132,252,.5)',accent:'#c084fc'},
+  {bg:'rgba(34,197,194,.20)',border:'rgba(34,197,194,.5)',accent:'#22c5c2'},
+  {bg:'rgba(251,146,60,.20)',border:'rgba(251,146,60,.5)',accent:'#fb923c'},
+  {bg:'rgba(236,72,153,.20)',border:'rgba(236,72,153,.5)',accent:'#ec4899'},
+];
+function subjectColor(subj){
+  if(!subj) return SUBJECT_PALETTE[0];
+  // Hash subject string to palette
+  let h=0;
+  for(let i=0;i<subj.length;i++) h=(h*31+subj.charCodeAt(i))>>>0;
+  return SUBJECT_PALETTE[h%SUBJECT_PALETTE.length];
 }
 
-function closeScheduleEdit(){
-  document.getElementById('sched-modal').classList.remove('on');
+// ─── DRAG & DROP ─────────────────────────────────────────────
+let schDragInfo=null; // {fromDay, fromIdx, lesson}
+
+function schDragStart(e,fromDay,fromIdx){
+  if(U.role!=='admin')return;
+  const lessons=getScheduleDay(fromDay);
+  schDragInfo={fromDay, fromIdx, lesson:lessons[fromIdx]};
+  e.target.classList.add('dragging');
+  // Required for Firefox
+  try{e.dataTransfer.setData('text/plain','x');}catch(err){}
+  e.dataTransfer.effectAllowed='move';
+}
+
+function schDragEnd(e){
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.sch-day-col.drop-over').forEach(el=>el.classList.remove('drop-over'));
+}
+
+function schDragOver(e,toDay){
+  if(!schDragInfo) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('drop-over');
+}
+
+function schDragLeave(e){
+  e.currentTarget.classList.remove('drop-over');
+}
+
+function schDrop(e,toDay){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-over');
+  if(!schDragInfo) return;
+  if(U.role!=='admin'){toast('Nur Admin');schDragInfo=null;return}
+
+  const {fromDay, fromIdx, lesson}=schDragInfo;
+
+  // Calculate target time based on drop Y position
+  const col=e.currentTarget;
+  const rect=col.getBoundingClientRect();
+  const y=e.clientY-rect.top;
+  // Determine minMin same as in renderSchedule
+  let minMin=8*60, maxMin=15*60;
+  DAY_KEYS.forEach(d=>{
+    getScheduleDay(d).forEach(l=>{
+      const s=timeToMinutes(l.start), eM=timeToMinutes(l.end);
+      if(s>=0) minMin=Math.min(minMin,s);
+      if(eM>=0) maxMin=Math.max(maxMin,eM);
+    });
+  });
+  minMin=Math.floor(minMin/60)*60;
+
+  const PX_PER_MIN=1.2;
+  const droppedAtMin = Math.round((minMin + y/PX_PER_MIN) / 5) * 5; // snap to 5-min
+  const lessonDur = timeToMinutes(lesson.end) - timeToMinutes(lesson.start);
+
+  // Build new lesson with shifted times
+  const newStart=minutesToTime(Math.max(0, droppedAtMin));
+  const newEnd=minutesToTime(Math.max(0, droppedAtMin + lessonDur));
+
+  // Remove from source
+  let fromArr=getScheduleDay(fromDay);
+  fromArr.splice(fromIdx,1);
+  S.schedule[fromDay]=fromArr;
+
+  // Add to target
+  let toArr=getScheduleDay(toDay);
+  toArr.push({...lesson, start:newStart, end:newEnd});
+  S.schedule[toDay]=toArr;
+
+  push();
+  schDragInfo=null;
   renderSchedule();
+  toast(`✓ Verschoben → ${DAY_SHORT[toDay]} ${newStart}`);
 }
 
-function renderScheduleEdit(){
-  const tabsEl=document.getElementById('sched-day-tabs');
-  const contEl=document.getElementById('sched-day-content');
-  if(!tabsEl || !contEl) return;
-
-  tabsEl.innerHTML=DAY_KEYS.map(d=>{
-    const sel=d===editScheduleDay;
-    return `<button class="btn btn-ghost btn-sm" onclick="setEditScheduleDay('${d}')" style="${sel?'background:rgba(245,200,66,.18);border-color:var(--gold);color:var(--gold)':''}">${DAY_SHORT[d]}</button>`;
-  }).join('');
-
-  const lessons=getScheduleDay(editScheduleDay);
-  contEl.innerHTML=`
-    <div style="margin-bottom:10px;font-weight:800;font-size:.92rem">${DAY_LABELS[editScheduleDay]}</div>
-    ${lessons.length===0?`<div class="empty"><span class="empty-icon">📅</span>Noch keine Stunden.</div>`:lessons.map((l,i)=>`
-      <div style="display:flex;gap:6px;align-items:center;background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;flex-wrap:wrap">
-        <input class="inp" value="${esc(l.start||'')}" onchange="updateLesson(${i},'start',this.value)" placeholder="08:00" style="width:70px;font-size:.78rem;padding:6px 8px;text-align:center">
-        <span style="color:var(--text-3)">–</span>
-        <input class="inp" value="${esc(l.end||'')}" onchange="updateLesson(${i},'end',this.value)" placeholder="09:30" style="width:70px;font-size:.78rem;padding:6px 8px;text-align:center">
-        <input class="inp" value="${esc(l.subj||'')}" onchange="updateLesson(${i},'subj',this.value)" placeholder="Fach" style="flex:1;min-width:120px;font-size:.82rem;padding:6px 10px">
-        <button class="btn-del" onclick="removeLesson(${i})">✕</button>
-      </div>
-    `).join('')}
-    <button class="btn btn-gold btn-block btn-sm" onclick="addLesson()" style="margin-top:8px">+ Stunde hinzufügen</button>
-  `;
+function minutesToTime(m){
+  m=Math.max(0,Math.min(23*60+59,m));
+  const h=Math.floor(m/60);
+  const min=m%60;
+  return String(h).padStart(2,'0')+':'+String(min).padStart(2,'0');
 }
 
-function setEditScheduleDay(d){
-  editScheduleDay=d;
-  renderScheduleEdit();
+// ─── LESSON EDIT ─────────────────────────────────────────────
+let editingLesson=null; // {day, idx} or null for new
+
+function openLessonEdit(day, idx){
+  if(U.role!=='admin'){return} // viewers can't edit
+  const lessons=getScheduleDay(day);
+  const lesson=lessons[idx];
+  if(!lesson)return;
+  editingLesson={day, idx};
+  document.getElementById('sl-title').textContent='📅 Stunde bearbeiten';
+  document.getElementById('sl-sub').textContent=DAY_LABELS[day];
+  document.getElementById('sl-day').value=day;
+  document.getElementById('sl-start').value=lesson.start||'';
+  document.getElementById('sl-end').value=lesson.end||'';
+  document.getElementById('sl-subj').value=lesson.subj||'';
+  document.getElementById('sl-del').style.display='';
+  document.getElementById('sched-modal').classList.add('on');
 }
 
-function addLesson(){
-  if(!S.schedule) S.schedule={};
-  let arr=S.schedule[editScheduleDay];
-  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  arr.push({start:'08:00',end:'09:30',subj:'Neues Fach'});
-  S.schedule[editScheduleDay]=arr;
-  push();
-  renderScheduleEdit();
-}
-
-function updateLesson(idx,field,value){
-  if(!S.schedule || !S.schedule[editScheduleDay]) return;
-  let arr=S.schedule[editScheduleDay];
-  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  if(arr[idx]){
-    arr[idx][field]=value;
-    S.schedule[editScheduleDay]=arr;
-    push();
+function addLessonQuick(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  // Default day = today if weekday, else monday
+  const dk=todayKey() || 'mon';
+  // Suggest start = end of last lesson today, default 8:00
+  const lessons=getScheduleDay(dk);
+  let suggStart='08:00';
+  if(lessons.length>0){
+    // last lesson's end
+    const last=lessons[lessons.length-1];
+    if(last.end) suggStart=last.end;
   }
+  // Suggest end = start + 90min (double lesson default)
+  const startMin=timeToMinutes(suggStart);
+  const suggEnd=minutesToTime(startMin+90);
+
+  editingLesson=null; // new lesson
+  document.getElementById('sl-title').textContent='📅 Neue Stunde';
+  document.getElementById('sl-sub').textContent='Anschluss-Zeit ist vorausgefüllt';
+  document.getElementById('sl-day').value=dk;
+  document.getElementById('sl-start').value=suggStart;
+  document.getElementById('sl-end').value=suggEnd;
+  document.getElementById('sl-subj').value='';
+  document.getElementById('sl-del').style.display='none';
+  document.getElementById('sched-modal').classList.add('on');
+  // Auto-focus subject for typing
+  setTimeout(()=>{document.getElementById('sl-subj').focus();},150);
 }
 
-function removeLesson(idx){
-  if(!S.schedule || !S.schedule[editScheduleDay]) return;
-  if(!confirm('Stunde löschen?')) return;
-  let arr=S.schedule[editScheduleDay];
-  if(!Array.isArray(arr)) arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  arr.splice(idx,1);
-  S.schedule[editScheduleDay]=arr;
+// When user changes the day in the modal, refresh the start suggestion
+document.addEventListener('change',e=>{
+  if(e.target && e.target.id==='sl-day' && !editingLesson){
+    const day=e.target.value;
+    const lessons=getScheduleDay(day);
+    let suggStart='08:00';
+    if(lessons.length>0) suggStart=lessons[lessons.length-1].end||'08:00';
+    const startMin=timeToMinutes(suggStart);
+    document.getElementById('sl-start').value=suggStart;
+    document.getElementById('sl-end').value=minutesToTime(startMin+90);
+  }
+  // Auto-suggest end when start changes (default +90min)
+  if(e.target && e.target.id==='sl-start'){
+    const sM=timeToMinutes(e.target.value);
+    if(sM>=0){
+      const endEl=document.getElementById('sl-end');
+      if(endEl && (!endEl.value || timeToMinutes(endEl.value)<=sM)){
+        endEl.value=minutesToTime(sM+90);
+      }
+    }
+  }
+});
+
+function closeLessonEdit(){
+  editingLesson=null;
+  document.getElementById('sched-modal').classList.remove('on');
+}
+
+function saveLessonEdit(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const day=document.getElementById('sl-day').value;
+  const start=document.getElementById('sl-start').value;
+  const end=document.getElementById('sl-end').value;
+  const subj=document.getElementById('sl-subj').value.trim();
+
+  if(!start || !end){toast('Bitte Zeiten angeben');return}
+  if(timeToMinutes(end)<=timeToMinutes(start)){toast('Endzeit muss nach Startzeit sein');return}
+  if(!subj){toast('Bitte Fach eintragen');return}
+
+  if(!S.schedule) S.schedule={};
+
+  if(editingLesson){
+    // Edit existing
+    const oldDay=editingLesson.day;
+    let arr=getScheduleDay(oldDay);
+    arr.splice(editingLesson.idx,1);
+    S.schedule[oldDay]=arr;
+
+    let newArr=getScheduleDay(day);
+    newArr.push({start,end,subj});
+    S.schedule[day]=newArr;
+  } else {
+    // New
+    let arr=getScheduleDay(day);
+    arr.push({start,end,subj});
+    S.schedule[day]=arr;
+  }
+
   push();
-  renderScheduleEdit();
+  closeLessonEdit();
+  renderSchedule();
+  toast(editingLesson?'✓ Gespeichert':'✓ Stunde hinzugefügt');
+}
+
+function deleteLessonFromEdit(){
+  if(!editingLesson)return;
+  if(!confirm('Diese Stunde löschen?'))return;
+  const {day,idx}=editingLesson;
+  let arr=getScheduleDay(day);
+  arr.splice(idx,1);
+  S.schedule[day]=arr;
+  push();
+  closeLessonEdit();
+  renderSchedule();
+  toast('Gelöscht');
+}
+
+function editScheduleSettings(){
+  // Placeholder for future settings like time-grid step
+  toast('Tippe auf einen Block oder "+ Stunde" oben');
 }
 
 // Default texts for parent letter (can be overridden via state)
