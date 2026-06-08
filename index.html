@@ -2970,14 +2970,23 @@ function subjectColor(subj){
 }
 
 // ─── DRAG & DROP ─────────────────────────────────────────────
-let schDragInfo=null; // {fromDay, fromIdx, lesson}
+let schDragInfo=null; // {fromDay, fromIdx, lesson, grabOffsetMin}
 
 function schDragStart(e,fromDay,fromIdx){
   if(U.role!=='admin')return;
   const lessons=getScheduleDay(fromDay);
-  schDragInfo={fromDay, fromIdx, lesson:lessons[fromIdx]};
-  e.target.classList.add('dragging');
-  // Required for Firefox
+  const lesson=lessons[fromIdx];
+  if(!lesson){return}
+
+  // Capture WHERE in the block the user grabbed (in minutes from block start)
+  const blockEl=e.currentTarget;
+  const rect=blockEl.getBoundingClientRect();
+  const PX_PER_MIN=getSchedulePxPerMin();
+  const grabY = e.clientY - rect.top;
+  const grabOffsetMin = grabY / PX_PER_MIN;
+
+  schDragInfo={fromDay, fromIdx, lesson, grabOffsetMin};
+  blockEl.classList.add('dragging');
   try{e.dataTransfer.setData('text/plain','x');}catch(err){}
   e.dataTransfer.effectAllowed='move';
 }
@@ -2985,6 +2994,58 @@ function schDragStart(e,fromDay,fromIdx){
 function schDragEnd(e){
   e.target.classList.remove('dragging');
   document.querySelectorAll('.sch-day-col.drop-over').forEach(el=>el.classList.remove('drop-over'));
+  removeDropIndicator();
+}
+
+function getSchedulePxPerMin(){
+  return 1.2; // must match render value
+}
+
+function getScheduleMinMin(){
+  // Compute current grid start minute (whole hours)
+  let minMin=8*60, maxMin=15*60;
+  DAY_KEYS.forEach(d=>{
+    getScheduleDay(d).forEach(l=>{
+      const s=timeToMinutes(l.start), e=timeToMinutes(l.end);
+      if(s>=0) minMin=Math.min(minMin,s);
+      if(e>=0) maxMin=Math.max(maxMin,e);
+    });
+  });
+  return Math.floor(minMin/60)*60;
+}
+
+function calcDropStartMin(col, clientY){
+  // Given the day column and a clientY, compute the snapped start minute for the lesson
+  if(!schDragInfo) return -1;
+  const rect=col.getBoundingClientRect();
+  const PX_PER_MIN=getSchedulePxPerMin();
+  const minMin=getScheduleMinMin();
+  const y=clientY - rect.top;
+  // Subtract grab offset so block top aligns with where user originally grabbed inside it
+  const dropTopMin = minMin + (y / PX_PER_MIN) - schDragInfo.grabOffsetMin;
+  // Snap to 5 minute steps
+  return Math.round(dropTopMin / 5) * 5;
+}
+
+function showDropIndicator(col, startMin, durMin){
+  removeDropIndicator();
+  const PX_PER_MIN=getSchedulePxPerMin();
+  const minMin=getScheduleMinMin();
+  const top=(startMin-minMin)*PX_PER_MIN;
+  const h=durMin*PX_PER_MIN;
+  const ind=document.createElement('div');
+  ind.id='sch-drop-ind';
+  ind.style.cssText=`position:absolute;left:2px;right:2px;top:${top}px;height:${h-2}px;
+    background:rgba(74,222,128,.20);border:2px dashed var(--green);border-radius:5px;
+    pointer-events:none;z-index:1;
+    display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:var(--green)`;
+  ind.textContent=minutesToTime(startMin)+'–'+minutesToTime(startMin+durMin);
+  col.appendChild(ind);
+}
+
+function removeDropIndicator(){
+  const ind=document.getElementById('sch-drop-ind');
+  if(ind) ind.remove();
 }
 
 function schDragOver(e,toDay){
@@ -2992,49 +3053,49 @@ function schDragOver(e,toDay){
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
   e.currentTarget.classList.add('drop-over');
+
+  // Show preview indicator at drop position
+  const startMin=calcDropStartMin(e.currentTarget, e.clientY);
+  const durMin=timeToMinutes(schDragInfo.lesson.end)-timeToMinutes(schDragInfo.lesson.start);
+  if(startMin>=0 && durMin>0){
+    showDropIndicator(e.currentTarget, startMin, durMin);
+  }
 }
 
 function schDragLeave(e){
-  e.currentTarget.classList.remove('drop-over');
+  // Only clear if we're actually leaving the column (not just hovering over a child block)
+  const col=e.currentTarget;
+  const related=e.relatedTarget;
+  if(related && col.contains(related)) return;
+  col.classList.remove('drop-over');
+  removeDropIndicator();
 }
 
 function schDrop(e,toDay){
   e.preventDefault();
   e.currentTarget.classList.remove('drop-over');
+  removeDropIndicator();
   if(!schDragInfo) return;
   if(U.role!=='admin'){toast('Nur Admin');schDragInfo=null;return}
 
   const {fromDay, fromIdx, lesson}=schDragInfo;
+  const durMin=timeToMinutes(lesson.end)-timeToMinutes(lesson.start);
 
-  // Calculate target time based on drop Y position
-  const col=e.currentTarget;
-  const rect=col.getBoundingClientRect();
-  const y=e.clientY-rect.top;
-  // Determine minMin same as in renderSchedule
-  let minMin=8*60, maxMin=15*60;
-  DAY_KEYS.forEach(d=>{
-    getScheduleDay(d).forEach(l=>{
-      const s=timeToMinutes(l.start), eM=timeToMinutes(l.end);
-      if(s>=0) minMin=Math.min(minMin,s);
-      if(eM>=0) maxMin=Math.max(maxMin,eM);
-    });
-  });
-  minMin=Math.floor(minMin/60)*60;
+  // Calculate drop start minute
+  const startMin=calcDropStartMin(e.currentTarget, e.clientY);
+  if(startMin<0){schDragInfo=null;return}
 
-  const PX_PER_MIN=1.2;
-  const droppedAtMin = Math.round((minMin + y/PX_PER_MIN) / 5) * 5; // snap to 5-min
-  const lessonDur = timeToMinutes(lesson.end) - timeToMinutes(lesson.start);
-
-  // Build new lesson with shifted times
-  const newStart=minutesToTime(Math.max(0, droppedAtMin));
-  const newEnd=minutesToTime(Math.max(0, droppedAtMin + lessonDur));
+  // Clamp to valid range
+  const clampedStart=Math.max(0, Math.min(23*60+59-durMin, startMin));
+  const newStart=minutesToTime(clampedStart);
+  const newEnd=minutesToTime(clampedStart + durMin);
 
   // Remove from source
   let fromArr=getScheduleDay(fromDay);
   fromArr.splice(fromIdx,1);
   S.schedule[fromDay]=fromArr;
 
-  // Add to target
+  // Add to target with new times
   let toArr=getScheduleDay(toDay);
   toArr.push({...lesson, start:newStart, end:newEnd});
   S.schedule[toDay]=toArr;
@@ -3042,7 +3103,7 @@ function schDrop(e,toDay){
   push();
   schDragInfo=null;
   renderSchedule();
-  toast(`✓ Verschoben → ${DAY_SHORT[toDay]} ${newStart}`);
+  toast(`✓ ${DAY_SHORT[toDay]} ${newStart}`);
 }
 
 function minutesToTime(m){
