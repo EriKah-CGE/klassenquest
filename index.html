@@ -3022,9 +3022,25 @@ function calcDropStartMin(col, clientY){
   const minMin=getScheduleMinMin();
   const y=clientY - rect.top;
   // Subtract grab offset so block top aligns with where user originally grabbed inside it
-  const dropTopMin = minMin + (y / PX_PER_MIN) - schDragInfo.grabOffsetMin;
-  // Snap to 5 minute steps
-  return Math.round(dropTopMin / 5) * 5;
+  let dropTopMin = minMin + (y / PX_PER_MIN) - schDragInfo.grabOffsetMin;
+
+  // Magnetic snap: if very close to a whole hour OR quarter-hour, snap there exactly
+  const remainder = dropTopMin % 60;
+  if(remainder < 4 || remainder > 56){
+    // Within 4 minutes of a whole hour: snap to the hour
+    dropTopMin = Math.round(dropTopMin / 60) * 60;
+  } else if(Math.abs(remainder-15)<3 || Math.abs(remainder-30)<3 || Math.abs(remainder-45)<3){
+    // Within 3 minutes of :15, :30, :45 → snap to quarter
+    dropTopMin = Math.round(dropTopMin / 15) * 15;
+  } else {
+    // Otherwise snap to 5-min steps
+    dropTopMin = Math.round(dropTopMin / 5) * 5;
+  }
+
+  // Clamp: prevent going above the visible grid (i.e. before minMin)
+  if(dropTopMin < minMin) dropTopMin = minMin;
+
+  return dropTopMin;
 }
 
 function showDropIndicator(col, startMin, durMin){
