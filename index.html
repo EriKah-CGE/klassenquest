@@ -119,6 +119,18 @@ input,textarea{font-family:inherit;user-select:text;-webkit-user-select:text}
 @keyframes blink{50%{opacity:.3}}
 
 /* BOTTOM NAV */
+.gq-card{background:var(--glass);border:1px solid var(--glass-2);border-radius:16px;padding:16px;margin-bottom:14px}
+.gq-card.unlocked{border-color:var(--gold-d);box-shadow:0 0 18px rgba(245,200,66,.15)}
+.gq-head{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.gq-em{font-size:2.1rem}
+.gq-name{font-weight:800;font-size:1.05rem}
+.gq-desc{color:var(--text-2);font-size:.85rem;line-height:1.35}
+.gq-bar{height:10px;border-radius:6px;background:rgba(0,0,0,.35);overflow:hidden;margin:6px 0 4px}
+.gq-fill{height:100%;background:linear-gradient(90deg,var(--gold-d),var(--gold));border-radius:6px;transition:width .4s}
+.gq-progress{color:var(--text-2);font-size:.8rem;margin-bottom:10px}
+.gq-lock{color:var(--text-2);font-weight:700;padding:8px 0}
+.gq-reached{color:var(--gold);font-weight:800;padding:6px 0}
+.gq-admin{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .bnav{
   position:fixed;bottom:0;left:0;right:0;z-index:50;
   display:flex;justify-content:space-around;
@@ -1102,6 +1114,13 @@ body.admin .admin-only{display:block}
     <div id="rw-list"></div>
   </div>
 
+  <!-- PAGE: BELOHNUNGSSPIELE -->
+  <div class="page" id="pg-games">
+    <div class="page-title">Belohnungsspiele</div>
+    <div class="bank-info">🎮 Spiele, die sich die Klasse mit Sternen verdient. Das Freischalten übernimmst du – die Einstellungen wählt ihr im Spiel selbst.</div>
+    <div id="games-list"></div>
+  </div>
+
   <!-- PAGE: SCHEDULE -->
   <div class="page" id="pg-schedule">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -1269,6 +1288,10 @@ body.admin .admin-only{display:block}
     <button class="nb" data-pg="bank" onclick="goPage('bank')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
       Bank
+    </button>
+    <button class="nb" data-pg="games" onclick="goPage('games')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><rect x="2" y="6" width="20" height="12" rx="4"/></svg>
+      Spiele
     </button>
     <button class="nb" data-pg="schedule" onclick="goPage('schedule')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1647,6 +1670,12 @@ function initFB(){
     });
 
     // Log listener
+    ref.child('games').on('value',snap=>{
+      const v=snap.val(); if(v)S.games=Object.assign(S.games||{},v);
+      saveLocal();
+      const pgG=document.getElementById('pg-games');
+      if(pgG&&pgG.classList.contains('on'))renderGames();
+    });
     ref.child('log').on('value',snap=>{
       const d=snap.val();
       if(d!==null && d!==undefined){
@@ -2011,12 +2040,71 @@ function tryAuto(){
 }
 
 /* NAV */
+/* ===== BELOHNUNGSSPIELE ===== */
+const REWARD_GAMES=[
+  {id:'runner3d',em:'🏃',name:'Bewegungs-Run 3D',
+   desc:'POV-Lauf mit Bewegungs-Kommandos – Bewegungspause für die ganze Klasse. Welt, Dauer & Tempo wählt ihr im Spiel.',
+   url:'https://erikah-cge.github.io/3dRunner/'}
+];
+function ensureGames(){
+  if(!S.games)S.games={};
+  REWARD_GAMES.forEach(g=>{if(!S.games[g.id])S.games[g.id]={goal:100,unlocked:false};});
+}
+function gameSet(id,patch,logTxt,icon){
+  ensureGames();
+  Object.assign(S.games[id],patch);
+  if(USE_FB&&ref){ref.child('games/'+id).update(patch);}
+  saveLocal();
+  if(logTxt)try{addLog({type:'game',icon:icon||'🎮',text:logTxt,sub:`von ${U.name}`});}catch(e){}
+  renderGames();
+}
+function gameGoal(id){
+  ensureGames();
+  const st=S.games[id];
+  const v=prompt('Sternenziel für die Freischaltung:',st.goal);
+  const n=parseInt(v,10);
+  if(!isNaN(n)&&n>0)gameSet(id,{goal:n},'Spielziel geändert: '+n+' ⭐','🎯');
+}
+function renderGames(){
+  ensureGames();
+  const el=document.getElementById('games-list');if(!el)return;
+  const isAdmin=U.role==='admin';
+  el.innerHTML=REWARD_GAMES.map(g=>{
+    const st=S.games[g.id]||{goal:100,unlocked:false};
+    const total=S.totalStars||0;
+    const pct=Math.min(100,Math.round(total/Math.max(1,st.goal)*100));
+    const reached=total>=st.goal;
+    let stateHtml='';
+    if(st.unlocked){
+      stateHtml=`<button class="btn btn-gold" style="width:100%;font-size:1.05rem" onclick="window.open('${g.url}','_blank')">▶ Spielen</button>`;
+    }else if(reached){
+      stateHtml=`<div class="gq-reached">🎉 Ziel erreicht!</div>`+
+        (isAdmin?`<button class="btn btn-gold" style="width:100%" onclick="gameSet('${g.id}',{unlocked:true},'${g.name} freigeschaltet')">Jetzt freischalten</button>`:'');
+    }else{
+      stateHtml=`<div class="gq-lock">🔒 Noch ${st.goal-total} ⭐ bis zur Freischaltung</div>`;
+    }
+    const adminHtml=isAdmin?`<div class="gq-admin">
+        ${st.unlocked
+          ?`<button class="btn btn-sm" onclick="gameSet('${g.id}',{unlocked:false},'${g.name} wieder gesperrt','🔒')">🔒 Wieder sperren</button>`
+          :(reached?'':`<button class="btn btn-sm" onclick="gameSet('${g.id}',{unlocked:true},'${g.name} manuell freigeschaltet')">Sofort freischalten</button>`)}
+        <button class="btn btn-sm" onclick="gameGoal('${g.id}')">🎯 Ziel: ${st.goal} ⭐</button>
+      </div>`:'';
+    return `<div class="gq-card${st.unlocked?' unlocked':''}">
+      <div class="gq-head"><span class="gq-em">${g.em}</span>
+        <div><div class="gq-name">${g.name}</div><div class="gq-desc">${g.desc}</div></div></div>
+      <div class="gq-bar"><div class="gq-fill" style="width:${st.unlocked?100:pct}%"></div></div>
+      <div class="gq-progress">${total} / ${st.goal} ⭐</div>
+      ${stateHtml}${adminHtml}
+    </div>`;
+  }).join('');
+}
 function goPage(name){
   document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id==='pg-'+name));
   document.querySelectorAll('.nb').forEach(e=>e.classList.toggle('on',e.dataset.pg===name));
   if(name==='log')renderLog();
   if(name==='students')renderStudents();
   if(name==='bank')renderRewards();
+  if(name==='games')renderGames();
   if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
   if(name==='schedule')renderSchedule();
   if(name==='settings'){
@@ -2030,6 +2118,8 @@ function goPage(name){
 /* RENDER */
 function renderAll(){
   const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
+  const pgG=document.getElementById('pg-games');
+  if(pgG&&pgG.classList.contains('on'))renderGames();
   const hd=document.getElementById('hud-day'); if(hd) hd.textContent=S.currentDay;
   const db=document.getElementById('day-big'); if(db) db.textContent=S.currentDay;
   const lb=document.getElementById('lesson-label-big');
