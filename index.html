@@ -292,10 +292,20 @@
     word-break:break-word;
   }
   .answer-btn:active{transform:scale(.97);}
-  .answer-btn.correct{background:linear-gradient(180deg,#51cf66,#2f9e44);border-color:#8ce99a;}
-  .answer-btn.wrong{background:linear-gradient(180deg,#ff8787,#e03131);border-color:#ffc9c9;}
-  .answer-btn.dim{opacity:.35;}
+  .answer-btn .shape{font-size:.85em;margin-right:.55em;}
+  .answer-btn.ans-0{background:linear-gradient(180deg,#ff5c77,#c8102e);border-color:#e21b3c;}
+  .answer-btn.ans-1{background:linear-gradient(180deg,#3d87e0,#0f4fa8);border-color:#1368ce;}
+  .answer-btn.ans-2{background:linear-gradient(180deg,#f0b421,#b57e00);border-color:#d89e00;}
+  .answer-btn.ans-3{background:linear-gradient(180deg,#43a832,#1e6b14);border-color:#26890c;}
+  .answer-btn.correct{border-color:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 0 22px rgba(255,255,255,.55);}
+  .answer-btn.correct::after{content:'✓';margin-left:.5em;}
+  .answer-btn.wrong{filter:saturate(.35) brightness(.65);}
+  .answer-btn.wrong::after{content:'✗';margin-left:.5em;}
+  .answer-btn.dim{opacity:.28;}
   .answer-btn:disabled{cursor:default;}
+  body.pad-only .icon-btns{display:none !important;}
+  body.pad-only #btn-pad-leave{display:none !important;}
+  body.pad-only{overscroll-behavior:none;}
   .skip-row{display:flex;justify-content:center;}
   .skip-btn{
     background:transparent;border:none;color:rgba(255,255,255,.55);
@@ -591,6 +601,7 @@
   <div class="answers" id="pad-answers"></div>
   <div class="pad-foot">
     <span id="pad-score"></span>
+    <button class="ghost-btn" id="btn-pad-retry" style="display:none">↻ Neu verbinden</button>
     <button class="ghost-btn" id="btn-pad-leave">Verlassen</button>
   </div>
 </div>
@@ -688,6 +699,7 @@ const BUILTIN_SETS = [
 const $ = id => document.getElementById(id);
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
 const rnd = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+const SHAPES=['▲','◆','●','■'];
 
 /* =================== EIGENE SETS (localStorage) =================== */
 const LS_KEY = 'fwf_custom_sets_v1';
@@ -804,7 +816,8 @@ function nextQuestion(){
   const box=$('answers'); box.innerHTML='';
   state.current.options.forEach((opt,i)=>{
     const b=document.createElement('button');
-    b.className='answer-btn'; b.textContent=opt;
+    b.className='answer-btn ans-'+i;
+    b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
     if(state.mode==='host'){ b.disabled=true; }
     else b.addEventListener('pointerdown', ()=>answerCore(i));
     box.appendChild(b);
@@ -931,6 +944,7 @@ function answerCore(i){
 
 /* =================== SCREENS & SETUP =================== */
 function show(id){
+  if(PAD_ONLY && id!=='screen-pad') return;   /* Kiosk: Tablets bleiben im Antwortfenster */
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   $(id).classList.add('active');
   $('btn-home').style.display = id==='screen-start' ? 'none' : 'flex';
@@ -1168,6 +1182,7 @@ $('import-file').addEventListener('change',e=>{
 /* =================== TABLET-MODUS (Firebase) =================== */
 window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
 let db=null, roomRef=null, roomCode='';
+let PAD_ONLY=false, lastJoin=null, wakeLock=null;
 function fbInit(){
   if(typeof firebase==='undefined' || !window.FIREBASE_CONFIG.databaseURL) return false;
   if(!db){
@@ -1228,17 +1243,43 @@ $('btn-join-go').addEventListener('pointerdown',()=>{
   joinRoom(code, +segValue('seg-team'));
 });
 function joinRoom(code, team){
-  padTeam=team;
+  padTeam=team; lastJoin={code,team};
   const ref=db.ref('fwf/'+code);
   ref.get().then(s=>{
-    if(!s.exists()){ alert('Kein Spiel mit diesem Code gefunden.\nLäuft an der Tafel gerade die Tablet-Lobby?'); return; }
+    if(!s.exists()){ padFail('Kein Spiel mit diesem Code gefunden. Läuft an der Tafel die Tablet-Lobby?'); return; }
     padRef=ref; padSentN=-1;
     padRef.child('pads/'+padTeam).set(true);
     padRef.child('pads/'+padTeam).onDisconnect().remove();
     padRef.on('value',s2=>renderPad(s2.val()));
+    $('btn-pad-retry').style.display='none';
     show('screen-pad');
-  }).catch(()=>alert('Verbindung fehlgeschlagen. Ist das Gerät im WLAN?'));
+    reqWakeLock();
+  }).catch(()=>padFail('Verbindung fehlgeschlagen. Ist das Gerät im WLAN?'));
 }
+function padFail(msg){
+  if(!PAD_ONLY){ alert(msg); return; }
+  show('screen-pad');
+  $('pad-head').textContent='⚽ Fachwort-Fußball';
+  $('pad-head').style.background='#22344f';
+  $('pad-status').textContent=msg;
+  $('pad-qcard').style.display='none'; $('pad-answers').innerHTML='';
+  $('btn-pad-retry').style.display='inline-flex';
+}
+$('btn-pad-retry').addEventListener('pointerdown',()=>{
+  $('btn-pad-retry').style.display='none';
+  $('pad-status').textContent='Verbinde …';
+  if(lastJoin) joinRoom(lastJoin.code, lastJoin.team);
+});
+function reqWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(w=>{wakeLock=w;}).catch(()=>{});
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && padRef) reqWakeLock();
+});
 function makeQRs(){
   [0,1].forEach(t=>{
     const el=$('qr-'+t); el.innerHTML='';
@@ -1264,7 +1305,7 @@ $('btn-pad-leave').addEventListener('pointerdown',padLeave);
 function renderPad(v){
   const stat=$('pad-status'), qc=$('pad-qcard'), qa=$('pad-answers');
   if(!v){
-    stat.textContent='Das Spiel an der Tafel wurde beendet.';
+    stat.textContent='Das Spiel an der Tafel wurde beendet. Für ein neues Spiel den neuen QR-Code scannen.';
     qa.innerHTML=''; qc.style.display='none';
     return;
   }
@@ -1287,7 +1328,8 @@ function renderPad(v){
     qa.innerHTML='';
     v.q.options.forEach((opt,i)=>{
       const b=document.createElement('button');
-      b.className='answer-btn'; b.textContent=opt;
+      b.className='answer-btn ans-'+i;
+      b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
       if(!mine || sent){ b.disabled=true; if(!mine) b.classList.add('dim'); }
       else b.addEventListener('pointerdown',()=>{
         if(padSentN===v.q.n) return;
@@ -1330,8 +1372,14 @@ fillSetSelect();
   const p=new URLSearchParams(location.search);
   const code=(p.get('join')||'').trim().toUpperCase();
   if(code.length===4){
+    PAD_ONLY=true;
+    document.body.classList.add('pad-only');
+    show('screen-pad');
+    $('pad-head').textContent='⚽ Fachwort-Fußball';
+    $('pad-head').style.background='#22344f';
+    $('pad-status').textContent='Verbinde …';
     if(fbInit()) joinRoom(code, p.get('team')==='1' ? 1 : 0);
-    else alert('Der Tablet-Modus braucht die Firebase-Konfiguration (config.js im selben Ordner).');
+    else padFail('Firebase-Konfiguration fehlt (config.js im selben Ordner).');
   }
 })();
 addEventListener('resize',()=>{ if(confettiRunning){ cvs.width=innerWidth; cvs.height=innerHeight; }});
