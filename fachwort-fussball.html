@@ -6,6 +6,10 @@
 <title>Fachwort-Fußball ⚽</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Bungee&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --night:#0d1b2a;
@@ -288,10 +292,20 @@
     word-break:break-word;
   }
   .answer-btn:active{transform:scale(.97);}
-  .answer-btn.correct{background:linear-gradient(180deg,#51cf66,#2f9e44);border-color:#8ce99a;}
-  .answer-btn.wrong{background:linear-gradient(180deg,#ff8787,#e03131);border-color:#ffc9c9;}
-  .answer-btn.dim{opacity:.35;}
+  .answer-btn .shape{font-size:.85em;margin-right:.55em;}
+  .answer-btn.ans-0{background:linear-gradient(180deg,#ff5c77,#c8102e);border-color:#e21b3c;}
+  .answer-btn.ans-1{background:linear-gradient(180deg,#3d87e0,#0f4fa8);border-color:#1368ce;}
+  .answer-btn.ans-2{background:linear-gradient(180deg,#f0b421,#b57e00);border-color:#d89e00;}
+  .answer-btn.ans-3{background:linear-gradient(180deg,#43a832,#1e6b14);border-color:#26890c;}
+  .answer-btn.correct{border-color:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 0 22px rgba(255,255,255,.55);}
+  .answer-btn.correct::after{content:'✓';margin-left:.5em;}
+  .answer-btn.wrong{filter:saturate(.35) brightness(.65);}
+  .answer-btn.wrong::after{content:'✗';margin-left:.5em;}
+  .answer-btn.dim{opacity:.28;}
   .answer-btn:disabled{cursor:default;}
+  body.pad-only .icon-btns{display:none !important;}
+  body.pad-only #btn-pad-leave{display:none !important;}
+  body.pad-only{overscroll-behavior:none;}
   .skip-row{display:flex;justify-content:center;}
   .skip-btn{
     background:transparent;border:none;color:rgba(255,255,255,.55);
@@ -311,7 +325,7 @@
   #confetti{position:fixed;inset:0;pointer-events:none;z-index:60;}
 
   /* ---------- Editor ---------- */
-  #screen-editor,#screen-set{padding:1.2rem;gap:1rem;overflow-y:auto;align-items:center;}
+  #screen-editor,#screen-set,#screen-join{padding:1.2rem;gap:1rem;overflow-y:auto;align-items:center;}
   .editor-card{
     background:var(--card);border-radius:20px;padding:1.3rem;width:min(760px,96vw);
     display:flex;flex-direction:column;gap:.9rem;
@@ -347,6 +361,38 @@
   .count-badge{opacity:.75;font-weight:700;}
   .list-head{display:flex;justify-content:space-between;align-items:baseline;}
   .list-head h3{font-size:1.15rem;font-family:"Lilita One";}
+
+  /* ---------- Tablet-Modus ---------- */
+  .room-code{
+    font-family:"Bungee";font-size:clamp(3rem,14vw,6.5rem);color:var(--led);
+    letter-spacing:.18em;background:#000;padding:.15em .4em .15em .55em;border-radius:18px;
+    text-shadow:0 0 24px rgba(255,212,59,.6);
+  }
+  #join-code{
+    font-family:"Bungee";font-size:2.2rem;text-align:center;
+    letter-spacing:.3em;text-transform:uppercase;
+  }
+  #screen-pad{padding:1rem 1rem 1.2rem;gap:.9rem;}
+  .pad-head{
+    font-family:"Lilita One";font-size:clamp(1.5rem,5vw,2.2rem);text-align:center;
+    padding:.55rem;border-radius:14px;background:var(--teamA);
+  }
+  .pad-status{
+    text-align:center;font-size:clamp(1.1rem,3.6vw,1.5rem);font-weight:800;
+    min-height:2rem;opacity:.95;
+  }
+  #pad-answers{flex:1;min-height:0;}
+  .pad-foot{display:flex;justify-content:space-between;align-items:center;gap:.8rem;}
+  .pad-foot span{font-family:"Bungee";font-size:1.2rem;color:var(--led);}
+  .qr-row{display:flex;gap:1.6rem;flex-wrap:wrap;justify-content:center;}
+  .qr-box{
+    background:#fff;border-radius:16px;padding:.8rem .8rem .6rem;
+    display:flex;flex-direction:column;align-items:center;gap:.5rem;
+    box-shadow:0 8px 25px rgba(0,0,0,.4);
+  }
+  .qr-label{font-weight:900;font-size:1.05rem;}
+  .qr-box img,.qr-box canvas{display:block;}
+  .room-code-inline{font-family:"Bungee";color:var(--led);letter-spacing:.12em;padding:0 .2em;}
   @media (max-width:700px){
     .answers{grid-template-columns:1fr;}
     .team-inputs{flex-direction:column;}
@@ -410,8 +456,25 @@
       </div>
     </div>
 
+    <div class="row">
+      <label>Antworten am</label>
+      <div class="seg" id="seg-mode">
+        <button data-v="local" class="sel">Board</button>
+        <button data-v="host">📱 2 Tablets</button>
+      </div>
+    </div>
+
+    <div class="row" id="row-play" style="display:none">
+      <label>Spielmodus</label>
+      <div class="seg" id="seg-play">
+        <button data-v="buzzer" class="sel">⚡ Schnellste Antwort</button>
+        <button data-v="turns">🔁 Abwechselnd</button>
+      </div>
+    </div>
+
     <button class="big-btn" id="btn-start">🏟️ Anpfiff!</button>
     <button class="ghost-btn" id="btn-editor">📝 Eigene Fragesets verwalten</button>
+    <button class="ghost-btn" id="btn-join">📱 Dieses Gerät ist ein Antwort-Tablet</button>
   </div>
 </div>
 
@@ -523,6 +586,34 @@
   </div>
 </div>
 
+<!-- ============ TABLET: BEITRETEN ============ -->
+<div class="screen" id="screen-join">
+  <div class="editor-card">
+    <h2>📱 Mitspielen</h2>
+    <p class="hint">Gebt den 4-Buchstaben-Code ein, der an der Tafel angezeigt wird, und wählt euer Team.</p>
+    <input type="text" id="join-code" maxlength="4" autocomplete="off" placeholder="CODE">
+    <div class="seg" id="seg-team">
+      <button data-v="0" class="sel">🔵 Team Blau</button>
+      <button data-v="1">🔴 Team Rot</button>
+    </div>
+    <button class="big-btn" id="btn-join-go">Beitreten</button>
+    <button class="ghost-btn" id="btn-join-back">‹ Zurück</button>
+  </div>
+</div>
+
+<!-- ============ TABLET: CONTROLLER ============ -->
+<div class="screen" id="screen-pad">
+  <div class="pad-head" id="pad-head">Team</div>
+  <div class="pad-status" id="pad-status">Warten …</div>
+  <div class="q-card" id="pad-qcard" style="display:none"><div class="q-text" id="pad-qtext"></div></div>
+  <div class="answers" id="pad-answers"></div>
+  <div class="pad-foot">
+    <span id="pad-score"></span>
+    <button class="ghost-btn" id="btn-pad-retry" style="display:none">↻ Neu verbinden</button>
+    <button class="ghost-btn" id="btn-pad-leave">Verlassen</button>
+  </div>
+</div>
+
 <!-- ============ OVERLAYS ============ -->
 <div class="overlay" id="overlay-goal">
   <h2 class="display">TOOOOR!</h2>
@@ -533,6 +624,18 @@
   <div class="who" id="win-who"></div>
   <button class="big-btn" id="btn-rematch">🔁 Revanche</button>
   <button class="ghost-btn" id="btn-win-home">Zum Startbildschirm</button>
+</div>
+<div class="overlay" id="overlay-lobby">
+  <h2 class="display" style="font-size:clamp(1.8rem,6vw,3.5rem)">📱 Tablets verbinden</h2>
+  <div class="who">Mit der Tablet-Kamera den passenden Code scannen – fertig:</div>
+  <div class="qr-row">
+    <div class="qr-box"><div class="qr-label" style="color:var(--teamA)">🔵 Team Blau</div><div id="qr-0"></div></div>
+    <div class="qr-box"><div class="qr-label" style="color:var(--teamB)">🔴 Team Rot</div><div id="qr-1"></div></div>
+  </div>
+  <div class="who" style="font-size:1.05rem;opacity:.85">… oder von Hand: Spiel öffnen → „Antwort-Tablet“ → Code <span class="room-code-inline" id="room-code">····</span></div>
+  <div class="who" id="lobby-status">🔵 … &nbsp;&nbsp; 🔴 …</div>
+  <button class="big-btn" id="btn-lobby-start">▶ Anpfiff!</button>
+  <button class="ghost-btn" id="btn-lobby-cancel">Abbrechen</button>
 </div>
 <canvas id="confetti"></canvas>
 
@@ -604,6 +707,7 @@ const BUILTIN_SETS = [
 const $ = id => document.getElementById(id);
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
 const rnd = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+const SHAPES=['▲','◆','●','■'];
 
 /* =================== EIGENE SETS (localStorage) =================== */
 const LS_KEY = 'fwf_custom_sets_v1';
@@ -668,6 +772,7 @@ const state = {
   turn:0, ball:0, goalsToWin:3, timer:0,
   set:null, difficulty:'leicht',
   usedIdx:new Set(), current:null, locked:false, timerId:null,
+  mode:'local', qNum:0, play:'turns', lockedTeams:new Set(),
 };
 
 /* =================== FRAGEN ERZEUGEN =================== */
@@ -711,22 +816,38 @@ function listQuestion(set){
 
 function nextQuestion(){
   state.locked=false;
+  state.qNum++;
   const s=state.set;
   state.current = s.math ? mathQuestion(state.difficulty) : listQuestion(s);
+  state.current.correctIdx = state.current.options.indexOf(state.current.correct);
   $('q-text').textContent = state.current.text;
   const box=$('answers'); box.innerHTML='';
-  state.current.options.forEach(opt=>{
+  state.current.options.forEach((opt,i)=>{
     const b=document.createElement('button');
-    b.className='answer-btn'; b.textContent=opt;
-    b.addEventListener('pointerdown', ()=>answer(b,opt));
+    b.className='answer-btn ans-'+i;
+    b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
+    if(state.mode==='host'){ b.disabled=true; }
+    else b.addEventListener('pointerdown', ()=>answerCore(i));
     box.appendChild(b);
   });
-  const teamCol = state.turn===0 ? 'var(--teamA)' : 'var(--teamB)';
-  $('q-card').style.borderTopColor = teamCol;
+  state.lockedTeams=new Set();
   const pill=$('turn-pill');
-  pill.textContent='⚽ '+state.teams[state.turn].name+' ist dran';
-  pill.style.background=teamCol;
+  if(state.play==='buzzer'){
+    $('q-card').style.borderTopColor='var(--led)';
+    pill.textContent='⚡ Schnellste richtige Antwort zählt!';
+    pill.style.background='#22344f';
+  } else {
+    const teamCol = state.turn===0 ? 'var(--teamA)' : 'var(--teamB)';
+    $('q-card').style.borderTopColor = teamCol;
+    pill.textContent = (state.mode==='host' ? '📱 ' : '⚽ ')+state.teams[state.turn].name+
+      (state.mode==='host' ? ' antwortet am Tablet' : ' ist dran');
+    pill.style.background=teamCol;
+  }
   pill.classList.remove('pulse'); void pill.offsetWidth; pill.classList.add('pulse');
+  fbPub({phase:'question',
+    q:{n:state.qNum, text:state.current.text, options:state.current.options,
+       turn: state.play==='buzzer' ? -1 : state.turn},
+    result:null, ans:null, locks:null});
   startTimer();
 }
 
@@ -749,10 +870,15 @@ function startTimer(){
 }
 function timeUp(){
   state.locked=true; sWrong();
-  document.querySelectorAll('.answer-btn').forEach(b=>{
-    b.disabled=true;
-    if(b.textContent===state.current.correct) b.classList.add('correct'); else b.classList.add('dim');
-  });
+  const c=state.current;
+  markAnswers(-1);
+  if(state.play==='buzzer'){
+    fbPub({phase:'result', result:{n:state.qNum, correct:c.correctIdx, winner:-1}});
+    $('turn-pill').textContent='⏱ Zeit um – keiner war schnell genug';
+    setTimeout(nextQuestion, 1900);
+    return;
+  }
+  fbPub({phase:'result', result:{n:state.qNum, correct:c.correctIdx, chosen:-1, ok:false}});
   moveBall(false);
 }
 
@@ -764,6 +890,10 @@ function renderBall(pct){
   ball.classList.remove('rolling'); void ball.offsetWidth; ball.classList.add('rolling');
 }
 function updateAttackHint(){
+  if(state.play==='buzzer'){
+    $('attack-hint').textContent='⚡ Wer zuerst richtig antwortet, schießt Richtung Gegner';
+    return;
+  }
   const t=state.teams[state.turn].name;
   const dir = state.turn===0 ? '→' : '←';
   $('attack-hint').textContent = t+' greift an '+dir;
@@ -800,6 +930,7 @@ function goal(team){
   state.teams[team].score++;
   $('sb-scoreA').textContent=state.teams[0].score;
   $('sb-scoreB').textContent=state.teams[1].score;
+  fbPub({phase:'goal', goalTeam:team, score:[state.teams[0].score,state.teams[1].score]});
   $('goal-who').textContent='für '+state.teams[team].name+'!';
   $('overlay-goal').classList.add('active');
   setTimeout(()=>{
@@ -811,28 +942,36 @@ function goal(team){
   },2300);
 }
 function win(team){
+  fbPub({phase:'end', winner:team});
   burstConfetti(220); burstConfetti(160);
   $('win-who').textContent=state.teams[team].name+' gewinnt '+state.teams[team].score+' : '+state.teams[1-team].score+'!';
   $('overlay-win').classList.add('active');
 }
 
 /* =================== ANTWORT =================== */
-function answer(btn,opt){
-  if(state.locked) return;
-  state.locked=true; stopTimer();
-  const ok = opt===state.current.correct;
-  document.querySelectorAll('.answer-btn').forEach(b=>{
+function markAnswers(chosen){
+  const c=state.current;
+  [...document.querySelectorAll('#answers .answer-btn')].forEach((b,j)=>{
     b.disabled=true;
-    if(b.textContent===state.current.correct) b.classList.add('correct');
-    else if(b===btn) b.classList.add('wrong');
+    if(j===c.correctIdx) b.classList.add('correct');
+    else if(j===chosen) b.classList.add('wrong');
     else b.classList.add('dim');
   });
+}
+function answerCore(i){
+  if(state.locked) return;
+  state.locked=true; stopTimer();
+  const c=state.current;
+  const ok = i===c.correctIdx;
+  markAnswers(i);
   ok ? sCorrect() : sWrong();
+  fbPub({phase:'result', result:{n:state.qNum, correct:c.correctIdx, chosen:i, ok}});
   moveBall(ok);
 }
 
 /* =================== SCREENS & SETUP =================== */
 function show(id){
+  if(PAD_ONLY && id!=='screen-pad') return;   /* Kiosk: Tablets bleiben im Antwortfenster */
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   $(id).classList.add('active');
   $('btn-home').style.display = id==='screen-start' ? 'none' : 'flex';
@@ -845,6 +984,10 @@ document.querySelectorAll('.seg').forEach(seg=>{
     b.classList.add('sel');
   });
 });
+$('seg-mode').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  $('row-play').style.display = b.dataset.v==='host' ? 'flex' : 'none';
+});
 $('set-select').addEventListener('change',()=>{
   const s = getSelectedSet();
   $('row-difficulty').style.display = s && s.math ? 'flex' : 'none';
@@ -853,6 +996,13 @@ function getSelectedSet(){
   const v=$('set-select').value;
   if(v.startsWith('c:')) return customSets[+v.slice(2)];
   return BUILTIN_SETS.find(s=>s.id===v);
+}
+function startMatch(){
+  $('sb-nameA').textContent=state.teams[0].name;
+  $('sb-nameB').textContent=state.teams[1].name;
+  $('sb-scoreA').textContent='0'; $('sb-scoreB').textContent='0';
+  show('screen-game'); renderBall(50); updateAttackHint();
+  sWhistle(); nextQuestion();
 }
 $('btn-start').addEventListener('pointerdown',()=>{
   const s=getSelectedSet();
@@ -865,25 +1015,49 @@ $('btn-start').addEventListener('pointerdown',()=>{
   state.set=s; state.difficulty=segValue('seg-diff');
   state.goalsToWin=+segValue('seg-goals'); state.timer=+segValue('seg-timer');
   state.ball=0; state.turn=rnd(0,1); state.usedIdx.clear();
-  $('sb-nameA').textContent=state.teams[0].name;
-  $('sb-nameB').textContent=state.teams[1].name;
-  $('sb-scoreA').textContent='0'; $('sb-scoreB').textContent='0';
-  show('screen-game'); renderBall(50); updateAttackHint();
-  sWhistle(); nextQuestion();
+  state.qNum=0;
+  state.mode=segValue('seg-mode');
+  state.play = state.mode==='host' ? segValue('seg-play') : 'turns';
+  if(state.mode==='host'){
+    if(!fbInit()){
+      alert('Für den Tablet-Modus fehlt die Firebase-Konfiguration.\nDie config.js von Klassenquest muss im selben Ordner liegen (databaseURL gesetzt).');
+      state.mode='local'; return;
+    }
+    roomCode=makeCode();
+    roomRef=db.ref('fwf/'+roomCode);
+    roomRef.set({created:Date.now(), phase:'lobby',
+      names:{0:state.teams[0].name, 1:state.teams[1].name}, score:[0,0]})
+      .catch(err=>{
+        alert('Der Spielraum konnte nicht angelegt werden:\n'+fbErrText(err)+
+          '\n\nVermutlich blockieren die Firebase-Regeln den Pfad „fwf“. In der Firebase-Konsole unter Realtime Database → Regeln freigeben.');
+        $('overlay-lobby').classList.remove('active');
+        hostCleanup();
+      });
+    roomRef.onDisconnect().remove();
+    hostListen();
+    $('room-code').textContent=roomCode;
+    makeQRs();
+    $('lobby-status').innerHTML='🔵 '+esc(state.teams[0].name)+' … &nbsp;&nbsp; 🔴 '+esc(state.teams[1].name)+' …';
+    $('overlay-lobby').classList.add('active');
+    return;
+  }
+  startMatch();
 });
 $('btn-skip').addEventListener('pointerdown',()=>{ if(!state.locked){ stopTimer(); nextQuestion(); }});
 $('btn-home').addEventListener('pointerdown',()=>{
+  if($('screen-pad').classList.contains('active')){ padLeave(); return; }
   if($('screen-game').classList.contains('active') && !confirm('Spiel wirklich beenden?')) return;
-  stopTimer(); show('screen-start');
+  stopTimer(); hostCleanup(); show('screen-start');
 });
 $('btn-rematch').addEventListener('pointerdown',()=>{
   $('overlay-win').classList.remove('active');
   state.teams.forEach(t=>t.score=0);
   $('sb-scoreA').textContent='0'; $('sb-scoreB').textContent='0';
   state.ball=0; state.turn=rnd(0,1); state.usedIdx.clear();
+  fbPub({score:[0,0]});
   renderBall(50); updateAttackHint(); sWhistle(); nextQuestion();
 });
-$('btn-win-home').addEventListener('pointerdown',()=>{ $('overlay-win').classList.remove('active'); show('screen-start'); });
+$('btn-win-home').addEventListener('pointerdown',()=>{ $('overlay-win').classList.remove('active'); hostCleanup(); show('screen-start'); });
 $('btn-sound').addEventListener('pointerdown',()=>{ soundOn=!soundOn; $('btn-sound').textContent=soundOn?'🔊':'🔇'; });
 $('btn-fullscreen').addEventListener('pointerdown',()=>{
   if(document.fullscreenElement) document.exitFullscreen();
@@ -1043,8 +1217,267 @@ $('import-file').addEventListener('change',e=>{
   r.readAsText(f); e.target.value='';
 });
 
+/* =================== TABLET-MODUS (Firebase) =================== */
+window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
+let db=null, roomRef=null, roomCode='';
+let PAD_ONLY=false, lastJoin=null, wakeLock=null;
+function fbInit(){
+  if(typeof firebase==='undefined' || !window.FIREBASE_CONFIG.databaseURL) return false;
+  if(!db){
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    db=firebase.database();
+  }
+  return true;
+}
+function fbPub(obj){ if(state.mode==='host' && roomRef) roomRef.update(obj); }
+function makeCode(){
+  const L='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c='';
+  for(let i=0;i<4;i++) c+=L[rnd(0,L.length-1)];
+  return c;
+}
+function hostListen(){
+  roomRef.child('ans').on('value',s=>{
+    const a=s.val();
+    if(!a || state.mode!=='host' || state.locked) return;
+    if(state.play==='turns'){
+      const e=a[state.turn];
+      if(e && e.n===state.qNum) answerCore(e.i);
+      return;
+    }
+    [0,1].map(t=>({t, e:a[t]}))
+      .filter(o=>o.e && o.e.n===state.qNum && !state.lockedTeams.has(o.t))
+      .sort((x,y)=>(x.e.ts||0)-(y.e.ts||0))
+      .forEach(o=>handleBuzz(o.t, o.e.i));
+  });
+  roomRef.child('pads').on('value',s=>{
+    const p=s.val()||{};
+    $('lobby-status').innerHTML=
+      '🔵 '+esc(state.teams[0].name)+(p[0]?' ✔':' …')+' &nbsp;&nbsp; '+
+      '🔴 '+esc(state.teams[1].name)+(p[1]?' ✔':' …');
+  });
+}
+function handleBuzz(t,i){
+  if(state.locked || state.lockedTeams.has(t)) return;
+  const c=state.current, pill=$('turn-pill');
+  if(i===c.correctIdx){
+    state.locked=true; stopTimer();
+    state.turn=t;                                  /* bestimmt die Schussrichtung */
+    markAnswers(i); sCorrect();
+    pill.textContent='⚡ '+state.teams[t].name+' war schneller!';
+    pill.style.background = t===0 ? 'var(--teamA)' : 'var(--teamB)';
+    fbPub({phase:'result', result:{n:state.qNum, correct:c.correctIdx, winner:t}});
+    moveBall(true);
+  } else {
+    state.lockedTeams.add(t);
+    sWrong();
+    fbPub({['locks/'+t]: state.qNum});
+    if(state.lockedTeams.size>=2){
+      state.locked=true; stopTimer();
+      markAnswers(-1);
+      fbPub({phase:'result', result:{n:state.qNum, correct:c.correctIdx, winner:-1}});
+      pill.textContent='✗ Beide daneben – nächste Frage!';
+      pill.style.background='#22344f';
+      setTimeout(nextQuestion, 1900);
+    } else {
+      pill.textContent='✗ '+state.teams[t].name+' daneben – '+state.teams[1-t].name+' darf noch!';
+      pill.style.background = (1-t)===0 ? 'var(--teamA)' : 'var(--teamB)';
+    }
+  }
+}
+function hostCleanup(){
+  if(roomRef){
+    roomRef.child('ans').off(); roomRef.child('pads').off();
+    roomRef.remove(); roomRef=null;
+  }
+  state.mode='local';
+}
+$('btn-lobby-start').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  startMatch();
+});
+$('btn-lobby-cancel').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  hostCleanup();
+});
+
+/* --- Tablet-Seite (Controller) --- */
+let padRef=null, padTeam=0, padSentN=-1, padSeenN=-1, padLastIdx=null;
+$('btn-join').addEventListener('pointerdown',()=>{
+  if(!fbInit()){
+    alert('Der Tablet-Modus braucht die Firebase-Konfiguration.\nDie config.js von Klassenquest muss im selben Ordner liegen.');
+    return;
+  }
+  show('screen-join');
+});
+$('btn-join-back').addEventListener('pointerdown',()=>show('screen-start'));
+$('btn-join-go').addEventListener('pointerdown',()=>{
+  const code=$('join-code').value.trim().toUpperCase();
+  if(code.length!==4){ alert('Bitte den 4-Buchstaben-Code von der Tafel eingeben.'); return; }
+  joinRoom(code, +segValue('seg-team'));
+});
+function joinRoom(code, team){
+  padTeam=team; lastJoin={code,team};
+  const ref=db.ref('fwf/'+code);
+  ref.get().then(s=>{
+    if(!s.exists()){ padFail('Kein Spiel mit diesem Code gefunden. Läuft an der Tafel die Tablet-Lobby?'); return; }
+    padRef=ref; padSentN=-1;
+    padRef.child('pads/'+padTeam).set(true);
+    padRef.child('pads/'+padTeam).onDisconnect().remove();
+    padRef.on('value',s2=>renderPad(s2.val()));
+    $('btn-pad-retry').style.display='none';
+    show('screen-pad');
+    reqWakeLock();
+  }).catch(err=>padFail('Verbindung fehlgeschlagen: '+fbErrText(err)));
+}
+function fbErrText(err){
+  const t=(err&&(err.code||err.message))||String(err);
+  if(/permission|denied/i.test(t)) return 'Zugriff verweigert (permission_denied) – die Firebase-Regeln blockieren den Pfad „fwf“.';
+  if(/network|unavailable|timeout/i.test(t)) return 'Netzwerkproblem – ist das Gerät im WLAN?';
+  return t;
+}
+function padFail(msg){
+  if(!PAD_ONLY){ alert(msg); return; }
+  show('screen-pad');
+  $('pad-head').textContent='⚽ Fachwort-Fußball';
+  $('pad-head').style.background='#22344f';
+  $('pad-status').textContent=msg;
+  $('pad-qcard').style.display='none'; $('pad-answers').innerHTML='';
+  $('btn-pad-retry').style.display='inline-flex';
+}
+$('btn-pad-retry').addEventListener('pointerdown',()=>{
+  $('btn-pad-retry').style.display='none';
+  $('pad-status').textContent='Verbinde …';
+  if(lastJoin) joinRoom(lastJoin.code, lastJoin.team);
+});
+function reqWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(w=>{wakeLock=w;}).catch(()=>{});
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && padRef) reqWakeLock();
+});
+function makeQRs(){
+  [0,1].forEach(t=>{
+    const el=$('qr-'+t); el.innerHTML='';
+    const url=location.origin+location.pathname+'?join='+roomCode+'&team='+t;
+    if(typeof QRCode!=='undefined'){
+      new QRCode(el,{text:url, width:180, height:180,
+        colorDark: t===0 ? '#1b4b91' : '#a12222', colorLight:'#ffffff',
+        correctLevel:QRCode.CorrectLevel.M});
+    } else {
+      el.textContent='QR nicht verfügbar – Code nutzen';
+    }
+  });
+}
+function padLeave(){
+  if(padRef){
+    padRef.off();
+    padRef.child('pads/'+padTeam).remove();
+    padRef=null;
+  }
+  show('screen-start');
+}
+$('btn-pad-leave').addEventListener('pointerdown',padLeave);
+function renderPad(v){
+  const stat=$('pad-status'), qc=$('pad-qcard'), qa=$('pad-answers');
+  if(!v){
+    stat.textContent='Das Spiel an der Tafel wurde beendet. Für ein neues Spiel den neuen QR-Code scannen.';
+    qa.innerHTML=''; qc.style.display='none';
+    return;
+  }
+  const head=$('pad-head');
+  head.textContent=(padTeam===0?'🔵 ':'🔴 ')+((v.names&&v.names[padTeam])||'Team');
+  head.style.background = padTeam===0 ? 'var(--teamA)' : 'var(--teamB)';
+  $('pad-score').textContent = v.score ? '⚽ '+v.score[0]+' : '+v.score[1] : '';
+  if(v.phase==='lobby'){
+    stat.textContent='Verbunden ✔ – warten auf den Anpfiff …';
+    qc.style.display='none'; qa.innerHTML='';
+    return;
+  }
+  if(v.phase==='question' && v.q){
+    if(padSeenN!==v.q.n){ padSeenN=v.q.n; padLastIdx=null; }
+    qc.style.display='flex'; $('pad-qtext').textContent=v.q.text;
+    const buzzer = v.q.turn===-1;
+    const mine = buzzer || v.q.turn===padTeam;
+    const lockedMe = buzzer && v.locks && v.locks[padTeam]===v.q.n;
+    const sent = padSentN===v.q.n;
+    stat.textContent =
+        lockedMe ? '✗ Leider falsch – das andere Team darf noch!'
+      : !mine    ? '⏳ '+((v.names&&v.names[v.q.turn])||'Das andere Team')+' ist dran …'
+      : sent     ? 'Antwort gesendet …'
+      : buzzer   ? '⚡ Schnell – wer zuerst richtig antwortet, schießt!'
+      : '🎯 Ihr seid dran – tippt die richtige Antwort!';
+    qa.innerHTML='';
+    v.q.options.forEach((opt,i)=>{
+      const b=document.createElement('button');
+      b.className='answer-btn ans-'+i;
+      b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
+      if(!mine || sent || lockedMe){
+        b.disabled=true;
+        if(!mine || lockedMe) b.classList.add('dim');
+        if(lockedMe && i===padLastIdx){ b.classList.remove('dim'); b.classList.add('wrong'); }
+      }
+      else b.addEventListener('pointerdown',()=>{
+        if(padSentN===v.q.n) return;
+        padSentN=v.q.n; padLastIdx=i;
+        padRef.child('ans/'+padTeam).set({n:v.q.n, i, ts:firebase.database.ServerValue.TIMESTAMP});
+        [...qa.children].forEach(x=>x.disabled=true);
+        b.style.borderColor='var(--led)';
+        stat.textContent='Antwort gesendet …';
+      });
+      qa.appendChild(b);
+    });
+    return;
+  }
+  if(v.phase==='result' && v.result){
+    const r=v.result;
+    const buzz = ('winner' in r);
+    [...qa.children].forEach((b,i)=>{
+      b.disabled=true;
+      if(i===r.correct) b.classList.add('correct');
+      else if(buzz ? (i===padLastIdx && r.winner!==padTeam) : i===r.chosen) b.classList.add('wrong');
+      else b.classList.add('dim');
+    });
+    if(buzz){
+      stat.textContent = r.winner===padTeam ? '⚡✔ Ihr wart schneller – richtig!'
+        : r.winner===-1 ? '⏱ Niemand hatte die richtige Antwort.'
+        : '⚡ '+((v.names&&v.names[r.winner])||'Das andere Team')+' war schneller.';
+    } else {
+      stat.textContent = r.ok ? '✔ Richtig!'
+        : (r.chosen===-1 ? '⏱ Zeit abgelaufen!' : '✖ Leider falsch.');
+    }
+    return;
+  }
+  if(v.phase==='goal'){
+    stat.textContent='⚽ TOOOOR für '+((v.names&&v.names[v.goalTeam])||'')+'!';
+    return;
+  }
+  if(v.phase==='end'){
+    stat.textContent='🏆 Sieg für '+((v.names&&v.names[v.winner])||'')+'!';
+    qa.innerHTML=''; qc.style.display='none';
+  }
+}
+
 /* =================== INIT =================== */
 fillSetSelect();
+/* QR-Autostart: ?join=CODE&team=0|1 */
+(function(){
+  const p=new URLSearchParams(location.search);
+  const code=(p.get('join')||'').trim().toUpperCase();
+  if(code.length===4){
+    PAD_ONLY=true;
+    document.body.classList.add('pad-only');
+    show('screen-pad');
+    $('pad-head').textContent='⚽ Fachwort-Fußball';
+    $('pad-head').style.background='#22344f';
+    $('pad-status').textContent='Verbinde …';
+    if(fbInit()) joinRoom(code, p.get('team')==='1' ? 1 : 0);
+    else padFail('Firebase-Konfiguration fehlt (config.js im selben Ordner).');
+  }
+})();
 addEventListener('resize',()=>{ if(confettiRunning){ cvs.width=innerWidth; cvs.height=innerHeight; }});
 </script>
 </body>
