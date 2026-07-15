@@ -3417,6 +3417,278 @@ function renderStudents(){
   }).join('');
 }
 
+/* STUDENT NOTES */
+let currentNoteStuId=null;
+let currentNoteTab='pos'; // 'pos' = positives, 'rem' = bemerkungen
+
+function openStuNotes(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  currentNoteStuId=id;
+  currentNoteTab='pos';
+  document.getElementById('notes-title').textContent=`📝 ${s.name}`;
+  const inPos=document.getElementById('note-input-pos');
+  if(inPos) inPos.value='';
+  const inTrait=document.getElementById('trait-input');
+  if(inTrait) inTrait.value='';
+  switchNoteTab('pos');
+  document.getElementById('notes-modal').classList.add('on');
+}
+
+function closeStuNotes(){
+  currentNoteStuId=null;
+  document.getElementById('notes-modal').classList.remove('on');
+}
+
+function switchNoteTab(tab){
+  currentNoteTab=tab;
+  const pos=document.getElementById('notes-tab-pos');
+  const traits=document.getElementById('notes-tab-traits');
+  const contPos=document.getElementById('notes-content-pos');
+  const contTraits=document.getElementById('notes-content-traits');
+  if(tab==='pos'){
+    pos.style.background='rgba(74,222,128,.18)';
+    pos.style.borderColor='var(--green)';
+    traits.style.background='';
+    traits.style.borderColor='';
+    if(contPos) contPos.style.display='';
+    if(contTraits) contTraits.style.display='none';
+    renderStuPositives();
+  } else {
+    traits.style.background='rgba(245,200,66,.18)';
+    traits.style.borderColor='var(--gold)';
+    pos.style.background='';
+    pos.style.borderColor='';
+    if(contPos) contPos.style.display='none';
+    if(contTraits) contTraits.style.display='';
+    renderTraits();
+  }
+}
+
+function renderStuPositives(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const list=document.getElementById('notes-list-pos');
+  if(!list)return;
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  if(arr.length===0){
+    list.innerHTML=`<div class="empty" style="padding:18px"><span class="empty-icon">✨</span>Noch nichts Positives festgehalten.</div>`;
+    return;
+  }
+  const sorted=[...arr].sort((a,b)=>(b.time||0)-(a.time||0));
+  list.innerHTML=sorted.map(n=>{
+    const t=n.time?new Date(n.time).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
+    return `<div style="background:rgba(74,222,128,.10);border:1px solid rgba(74,222,128,.32);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;gap:8px;align-items:flex-start">
+      <div style="font-size:1rem;flex-shrink:0">✨</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.85rem;color:var(--text);font-weight:600;line-height:1.4;word-break:break-word">${esc(n.text||'')}</div>
+        <div style="font-size:.68rem;color:var(--text-3);font-weight:700;margin-top:3px">${esc(n.author||'?')} · ${t}</div>
+      </div>
+      <button class="btn-del" onclick="delStuPositive('${n.id}')" title="Löschen">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addStuPositive(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const input=document.getElementById('note-input-pos');
+  const text=input.value.trim();
+  if(!text){toast('Notiz darf nicht leer sein');return}
+
+  const note={id:'n'+Date.now()+Math.random().toString(16).slice(2,5),text,author:U.name,time:Date.now()};
+
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr.push(note);
+  s.positives=arr;
+
+  input.value='';
+  saveLocal();
+  renderStuPositives();
+  renderStudents();
+  addLog({type:'positive',icon:'✨',text:`Positives: ${s.name}`,sub:`"${text}" · ${U.name}`});
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx].positives;
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr.push(note);
+      arrFB[idx].positives=stuArr;
+      return arrFB;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+  toast('✨ Positives hinzugefügt');
+}
+
+function delStuPositive(noteId){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s)return;
+  if(!confirm('Diese Notiz löschen?'))return;
+
+  let arr=s.positives;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  arr=arr.filter(n=>n && n.id!==noteId);
+  s.positives=arr;
+
+  saveLocal();
+  renderStuPositives();
+  renderStudents();
+
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idx===-1)return current;
+      let stuArr=arrFB[idx].positives;
+      if(!Array.isArray(stuArr)){
+        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+      }
+      stuArr=stuArr.filter(n=>n && n.id!==noteId);
+      arrFB[idx].positives=stuArr;
+      return arrFB;
+    }).catch(()=>{});
+  }
+  toast('Gelöscht');
+}
+
+// === TRAITS ===
+function getStudentTraits(s){
+  let arr=s.traits;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+  }
+  return arr;
+}
+
+function getAvailableTraits(){
+  let arr=S.availableTraits;
+  if(!Array.isArray(arr)){
+    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
+    S.availableTraits=arr;
+  }
+  return arr;
+}
+
+function renderTraits(){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s){closeStuNotes();return}
+  const list=document.getElementById('traits-list');
+  if(!list)return;
+  const available=getAvailableTraits();
+  const active=getStudentTraits(s);
+  if(available.length===0){
+    list.innerHTML=`<div class="empty" style="padding:14px"><span class="empty-icon">⭐</span>Noch keine Eigenschaften definiert. Trag unten welche ein.</div>`;
+    return;
+  }
+  list.innerHTML=available.map(t=>{
+    const checked=active.includes(t.id);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:5px;background:${checked?'rgba(245,200,66,.12)':'var(--glass)'};border:1px solid ${checked?'rgba(245,200,66,.36)':'var(--border-2)'};border-radius:var(--r);cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleTrait('${t.id}')" style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
+      <div style="flex:1;min-width:0;font-size:.86rem;font-weight:600;color:var(--text);line-height:1.3;word-break:break-word">${esc(t.label)}</div>
+      ${U.role==='admin'?`<button class="btn-del" onclick="event.preventDefault();event.stopPropagation();delTraitFromLibrary('${t.id}')" title="Eigenschaft aus Liste löschen">✕</button>`:''}
+    </label>`;
+  }).join('');
+}
+
+function toggleTrait(traitId){
+  const s=S.students.find(x=>x.id===currentNoteStuId);
+  if(!s)return;
+  let arr=getStudentTraits(s);
+  const idx=arr.indexOf(traitId);
+  if(idx===-1){
+    arr.push(traitId);
+  } else {
+    arr.splice(idx,1);
+  }
+  s.traits=arr;
+  saveLocal();
+  renderTraits();
+  renderStudents();
+
+  // Sync
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idxFB=arrFB.findIndex(x=>x&&x.id===s.id);
+      if(idxFB===-1)return current;
+      arrFB[idxFB].traits=arr;
+      return arrFB;
+    }).catch(()=>{});
+  }
+}
+
+function addCustomTrait(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const input=document.getElementById('trait-input');
+  const label=input.value.trim();
+  if(!label){toast('Bezeichnung darf nicht leer sein');return}
+
+  let arr=getAvailableTraits();
+  // Check duplicate
+  if(arr.some(t=>t.label.toLowerCase()===label.toLowerCase())){
+    toast('Diese Eigenschaft existiert schon');
+    return;
+  }
+
+  const newTrait={id:'t'+Date.now()+Math.random().toString(16).slice(2,5),label};
+  arr.push(newTrait);
+  S.availableTraits=arr;
+  input.value='';
+  saveLocal();
+  push();
+  renderTraits();
+  toast('✓ Eigenschaft hinzugefügt');
+}
+
+function delTraitFromLibrary(traitId){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  const t=getAvailableTraits().find(x=>x.id===traitId);
+  if(!t)return;
+  if(!confirm(`Eigenschaft "${t.label}" aus der Liste löschen?\n\nDamit verschwindet sie auch bei allen Schülern.`))return;
+
+  // Remove from global list
+  S.availableTraits=getAvailableTraits().filter(x=>x.id!==traitId);
+  // Remove from all students
+  if(Array.isArray(S.students)){
+    S.students.forEach(stu=>{
+      let stuArr=getStudentTraits(stu);
+      stu.traits=stuArr.filter(id=>id!==traitId);
+    });
+  }
+  saveLocal();
+  push();
+  // Re-sync students
+  if(ref){
+    ref.child('students').transaction(current=>{
+      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
+      arrFB.forEach(stu=>{
+        if(stu){
+          let stuArr=stu.traits;
+          if(!Array.isArray(stuArr)) stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
+          stu.traits=stuArr.filter(id=>id!==traitId);
+        }
+      });
+      return arrFB;
+    }).catch(()=>{});
+  }
+  renderTraits();
+  toast('Gelöscht');
+}
+
 /* INDIVIDUAL STUDENT STARS — positive Verstärkung fürs Kind */
 function giveStar(id){
   const s=S.students.find(x=>x.id===id);
