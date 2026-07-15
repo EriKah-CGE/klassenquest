@@ -14,7 +14,6 @@
 <script src="config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg-1:#0e0a26; --bg-2:#1a1340; --bg-3:#241758;
@@ -721,7 +720,6 @@ body.admin .admin-only{display:block}
   background:var(--glass);border:1px solid var(--border-2);
   border-radius:var(--r);padding:10px 12px;margin-bottom:8px;
 }
-.stu-card.zero{background:rgba(248,113,113,.10);border-color:rgba(248,113,113,.32)}
 .stu-av{
   width:40px;height:40px;border-radius:50%;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
@@ -731,17 +729,21 @@ body.admin .admin-only{display:block}
 .stu-info{flex:1;min-width:0}
 .stu-name{font-weight:800;font-size:.9rem;color:var(--text);
   margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stu-hearts{display:flex;gap:3px}
-.sheart{width:18px;height:18px;transition:all .22s}
-.sheart.lost{filter:grayscale(1) brightness(.3);transform:scale(.78)}
+.stu-stars{display:flex;align-items:center;gap:5px;font-size:.92rem;font-weight:800;color:var(--gold)}
+.stu-stars-num{font-family:'Cinzel',serif;font-size:1.05rem;text-shadow:0 0 10px rgba(245,200,66,.4)}
+.btn-star-give{
+  background:linear-gradient(160deg,#fde68a,#f5c842);
+  border:1.5px solid var(--gold-d);border-radius:11px;
+  color:#5a4302;font-weight:900;font-size:.86rem;
+  padding:8px 13px;cursor:pointer;white-space:nowrap;
+  box-shadow:0 3px 0 var(--gold-sh);transition:transform .1s;
+}
+.btn-star-give:active{transform:translateY(2px);box-shadow:0 1px 0 var(--gold-sh)}
 .stu-actions{display:flex;gap:5px;flex-shrink:0}
-.btn-life,.btn-restore{
+.btn-restore{
   width:38px;height:38px;border-radius:10px;border:none;color:#fff;
   cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.2rem;
 }
-.btn-life{background:linear-gradient(160deg,#f87171,#dc2626);box-shadow:0 3px 0 var(--red-sh)}
-.btn-life:active{transform:translateY(2px);box-shadow:0 1px 0 var(--red-sh)}
-.btn-life:disabled{opacity:.4;pointer-events:none}
 .btn-restore{background:linear-gradient(160deg,#4ade80,#16a34a);box-shadow:0 3px 0 var(--green-sh)}
 .btn-restore:active{transform:translateY(2px);box-shadow:0 1px 0 var(--green-sh)}
 .btn-del{width:30px;height:30px;border-radius:9px;
@@ -1010,7 +1012,7 @@ body.admin .admin-only{display:block}
       <div class="role-opt sel" data-r="subject" onclick="pickRole('subject')">
         <div style="font-size:1.8rem">⚔️</div>
         <div class="role-opt-title">Fachlehrer:in</div>
-        <div class="role-opt-sub">Leben & Sterne</div>
+        <div class="role-opt-sub">Sterne vergeben</div>
       </div>
       <div class="role-opt" data-r="admin" onclick="pickRole('admin')">
         <div style="font-size:1.8rem">👑</div>
@@ -1037,36 +1039,25 @@ body.admin .admin-only{display:block}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="#f5c842"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
         <span id="hud-stars">0</span>
       </div>
-      <div class="hud-pill day">T<span id="hud-day">1</span></div>
+      <div class="hud-pill day" id="hud-date">–</div>
       <div class="sync off" id="sync-dot"></div>
     </div>
-  </div>
-
-  <div class="notif" id="notif">
-    <div class="notif-icon">⚠️</div>
-    <div class="notif-body">
-      <div class="notif-t" id="notif-t"></div>
-      <div class="notif-s" id="notif-s"></div>
-    </div>
-    <button class="notif-x" id="notif-print" onclick="printFromBanner()" title="Eltern-Brief drucken" style="font-size:1.1rem;margin-right:2px">🖨️</button>
-    <button class="notif-x" onclick="hideNotif()">✕</button>
   </div>
 
   <!-- PAGE: GAME -->
   <div class="page on" id="pg-game">
     <div class="push-bar hidden" id="push-bar">
       <span style="font-size:1.3rem;flex-shrink:0">🔔</span>
-      <span style="flex:1">Aktiviere Benachrichtigungen für Alarm bei Leben-0.</span>
+      <span style="flex:1">Aktiviere Benachrichtigungen für wichtige Ereignisse (z.B. Bosskampf).</span>
       <button class="btn btn-gold btn-xs" onclick="askPush()">OK</button>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
       <div>
-        <div style="font-family:'Cinzel',serif;font-size:1.6rem;font-weight:700;color:var(--gold);text-shadow:0 0 14px rgba(245,200,66,.35);line-height:1">Tag <span id="day-big">1</span></div>
+        <div style="font-family:'Cinzel',serif;font-size:1.4rem;font-weight:700;color:var(--gold);text-shadow:0 0 14px rgba(245,200,66,.35);line-height:1.05" id="date-big">Heute</div>
         <div style="font-size:.78rem;font-weight:700;color:var(--text-2);margin-top:2px">📚 <span id="lesson-label-big">Doppelstunde 1./2.</span></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch">
         <button class="btn btn-green btn-sm" onclick="finishLesson()" style="white-space:nowrap">✓ Stunde fertig</button>
-        <button class="btn btn-ghost btn-xs" onclick="nextDay()" style="white-space:nowrap">🌙 Nächster Tag</button>
       </div>
     </div>
     <div class="map-header">
@@ -1084,7 +1075,6 @@ body.admin .admin-only{display:block}
   <div class="page" id="pg-students">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;gap:8px">
       <div class="page-title" style="margin:0">Klasse</div>
-      <button class="btn btn-ghost btn-sm" onclick="restoreAll()">↺ Alle</button>
     </div>
     <!-- User toolbar (visible to all roles) -->
     <div style="background:var(--glass);border:1px solid var(--border-2);border-radius:var(--r);padding:10px 12px;margin-bottom:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1096,7 +1086,7 @@ body.admin .admin-only{display:block}
       <button class="btn btn-ghost btn-xs" onclick="logout()">Abmelden</button>
     </div>
     <div class="add-row hidden" id="stu-add-row">
-      <input class="inp" id="stu-inp" placeholder="Name eingeben…" maxlength="30">
+      <input class="inp" id="stu-inp" placeholder="Nur Vorname (Datenschutz)…" maxlength="30">
       <button class="btn btn-gold btn-sm" onclick="addStu()">+ Neu</button>
     </div>
     <div id="stu-list"></div>
@@ -1153,7 +1143,7 @@ body.admin .admin-only{display:block}
     <div class="filter-row">
       <button class="fchip on" data-f="all"   onclick="setF('all')">Alle</button>
       <button class="fchip" data-f="sev"      onclick="setF('sev')">⚠️ Krit.</button>
-      <button class="fchip" data-f="life"     onclick="setF('life')">Herz</button>
+      <button class="fchip" data-f="life"     onclick="setF('life')">🌟 Kinder</button>
       <button class="fchip" data-f="stars"    onclick="setF('stars')">Sterne</button>
       <button class="fchip" data-f="notes"    onclick="setF('notes')">✨ Positives</button>
       <button class="fchip" data-f="today"    onclick="setF('today')">Heute</button>
@@ -1184,40 +1174,6 @@ body.admin .admin-only{display:block}
         <div class="sg-hint" style="margin-top:6px;font-size:.68rem;line-height:1.4" id="push-env">…</div>
       </div>
     </div>
-
-    <!-- Schule – Briefkopf für Eltern-Briefe – nur Admin -->
-    <div class="sg admin-only">
-      <div class="sg-title">Schule (für Eltern-Briefe)</div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div><div class="sg-lbl">Schul-Logo</div><div class="sg-hint" id="logo-hint">Optional · wird oben im Brief angezeigt</div></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <img id="logo-preview" src="" alt="" style="max-height:60px;max-width:140px;display:none;border-radius:6px;background:#fff;padding:4px">
-          <input type="file" id="logo-input" accept="image/*" onchange="uploadLogo(event)" style="font-size:.7rem">
-          <button class="btn btn-ghost btn-xs" onclick="removeLogo()" id="logo-rm-btn" style="display:none">Entfernen</button>
-        </div>
-      </div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <label class="sg-lbl">Schulname</label>
-        <input class="inp" id="sch-name" placeholder="z.B. Geschwister-Scholl-Schule" oninput="saveSchoolField('name',this.value)">
-      </div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <label class="sg-lbl">Adresse</label>
-        <input class="inp" id="sch-addr" placeholder="z.B. Schulstraße 1, 12345 Musterstadt" oninput="saveSchoolField('address',this.value)">
-      </div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <label class="sg-lbl">Kontakt</label>
-        <input class="inp" id="sch-contact" placeholder="z.B. Tel. 01234-56789 · info@schule.de" oninput="saveSchoolField('contact',this.value)">
-      </div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <label class="sg-lbl">Klasse</label>
-        <input class="inp" id="sch-class" placeholder="z.B. 5a" oninput="saveSchoolField('className',this.value)">
-      </div>
-      <div class="sg-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <label class="sg-lbl">Klassenlehrer:in (für Unterschrift)</label>
-        <input class="inp" id="sch-sig" placeholder="z.B. Frau Müller" oninput="saveSchoolField('signatory',this.value)">
-      </div>
-    </div>
-
     <!-- Passwörter – nur Admin -->
     <div class="sg admin-only">
       <div class="sg-title">Passwörter</div>
@@ -1250,8 +1206,8 @@ body.admin .admin-only{display:block}
         </div>
       </div>
       <div class="sg-row">
-        <div><div class="sg-lbl">Nächster Tag</div><div class="sg-hint">Leben zurücksetzen, Bosse prüfen</div></div>
-        <button class="btn btn-blue btn-sm" onclick="nextDay()">Tag +1</button>
+        <div><div class="sg-lbl">Tag manuell weiterschalten</div><div class="sg-hint">Läuft automatisch übers Datum · manuell nur für Bosse/Überspringen</div></div>
+        <button class="btn btn-blue btn-sm" onclick="nextDay()">Weiter</button>
       </div>
       <div class="sg-row">
         <div><div class="sg-lbl">Spiel zurücksetzen</div><div class="sg-hint">Alles auf Anfang</div></div>
@@ -1314,28 +1270,6 @@ body.admin .admin-only{display:block}
   <div class="sheet-handle"></div>
   <button class="sheet-x" onclick="closeSheet()">✕</button>
   <div id="sh-body"></div>
-</div>
-
-<!-- REASON MODAL -->
-<div class="modal-wrap" id="reason-modal">
-  <div class="modal">
-    <div class="modal-title" id="rm-title">⚔️ Leben abziehen</div>
-    <div class="modal-sub" id="rm-sub"></div>
-    <div class="section-label">Schnellauswahl</div>
-    <div class="chips">
-      <button class="chip" onclick="setReason('Stört Unterricht')">Stört Unterricht</button>
-      <button class="chip" onclick="setReason('Keine Mitarbeit')">Keine Mitarbeit</button>
-      <button class="chip" onclick="setReason('Respektlos')">Respektlos</button>
-      <button class="chip" onclick="setReason('Handy raus')">Handy raus</button>
-      <button class="chip" onclick="setReason('Material fehlt')">Material fehlt</button>
-      <button class="chip" onclick="setReason('Andere gestört')">Andere gestört</button>
-    </div>
-    <textarea class="modal-ta" id="reason-ta" rows="2" placeholder="Eigener Grund (optional)…"></textarea>
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="closeReasonModal()">Abbrechen</button>
-      <button class="btn btn-red" onclick="confirmLife()">❤️ Abziehen</button>
-    </div>
-  </div>
 </div>
 
 <!-- PICKER -->
@@ -1424,41 +1358,6 @@ body.admin .admin-only{display:block}
   </div>
 </div>
 
-<!-- PARENT LETTER EDIT MODAL -->
-<div class="modal-wrap" id="letter-modal">
-  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
-    <div class="modal-title">✉️ Eltern-Brief bearbeiten</div>
-    <div class="modal-sub" id="lt-sub">Du kannst alle Texte vor dem PDF-Export anpassen.</div>
-
-    <label class="lbl">Anrede</label>
-    <input class="inp mb10" id="lt-anrede" placeholder="Sehr geehrte Erziehungsberechtigte von ...">
-
-    <label class="lbl">Einleitung</label>
-    <textarea class="inp mb10" id="lt-intro" rows="3" style="min-height:60px;resize:vertical"></textarea>
-
-    <label class="lbl">Überschrift Vorfälle</label>
-    <input class="inp mb10" id="lt-vor-title" placeholder="Konkrete Vorfälle des Tages:">
-
-    <label class="lbl">Vorfälle (jede Zeile = ein Punkt)</label>
-    <textarea class="inp mb10" id="lt-vorf" rows="6" style="min-height:100px;resize:vertical"></textarea>
-
-    <label class="lbl">Bitte um Gespräch</label>
-    <textarea class="inp mb10" id="lt-bitte" rows="3" style="min-height:60px;resize:vertical"></textarea>
-
-    <label class="lbl">Unterschriften-Aufforderung</label>
-    <textarea class="inp mb10" id="lt-sign" rows="2" style="min-height:50px;resize:vertical"></textarea>
-
-    <label class="lbl">Schlussformel</label>
-    <input class="inp mb10" id="lt-greet" placeholder="Mit freundlichen Grüßen">
-
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="closeLetterModal()">Abbrechen</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetLetterDefaults()">↺ Standard</button>
-      <button class="btn btn-gold" onclick="generateLetterPDF()">📄 PDF erstellen</button>
-    </div>
-  </div>
-</div>
-
 <!-- EDIT CRITERIA MODAL -->
 <div class="modal-wrap" id="edit-modal">
   <div class="modal">
@@ -1507,7 +1406,6 @@ const FIREBASE_CONFIG = window.FIREBASE_CONFIG;
 const ADMIN_PW = window.ADMIN_PW;
 const TEACHER_PW = window.TEACHER_PW;
 const DB_PATH = window.DB_PATH;
-const MAX_LIVES=3;
 // Only use Firebase if BOTH databaseURL AND DB_PATH are configured
 const USE_FB = !!FIREBASE_CONFIG.databaseURL && !!DB_PATH;
 
@@ -1559,6 +1457,7 @@ const BOSSES=[
  */
 let S={
   totalStars:0,currentLevel:1,currentDay:1,currentLesson:1,
+  dayDate:'', // ISO date on which the current internal day started
   lessonMode:'double',
   completedLevels:[],checkedCriteria:{},
   rewards:[],dayRewards:{},
@@ -1566,7 +1465,6 @@ let S={
   students:[],log:[],
   customCriteria:{},
   passwords:{},
-  school:{name:'',address:'',contact:'',className:'',logoData:'',signatory:''},
   availableTraits:[], // [{id, label}] - global library of trait checkboxes
   schedule:{}, // {mon:[{subj,start,end}], tue:[], ...}
 };
@@ -1596,19 +1494,13 @@ function initFB(){
           syncDot('on');
           return;
         }
-
-        const oldStudentsZero = new Set();
-        if(Array.isArray(S.students)){
-          S.students.forEach(s=>{ if(s && s.lives<=0) oldStudentsZero.add(s.id); });
-        }
-
         remote=true;
         // MERGE specific fields from Firebase, don't delete whole state
         // students and log have their own listeners
         const fieldsToMerge=['totalStars','currentLevel','currentDay','currentLesson',
-                             'lessonMode','completedLevels','checkedCriteria',
+                             'dayDate','lessonMode','completedLevels','checkedCriteria',
                              'rewards','dayRewards','bossProgress','defeatedBosses',
-                             'activeBossDay','customCriteria','passwords','school',
+                             'activeBossDay','customCriteria','passwords',
                              'availableTraits','schedule'];
         fieldsToMerge.forEach(k=>{
           if(d[k]!==undefined) S[k]=d[k];
@@ -1621,29 +1513,13 @@ function initFB(){
           S.log=d.log;
         }
         fixState();
-
-        if(Array.isArray(S.students)){
-          S.students.forEach(s=>{
-            if(s && s.lives<=0 && !oldStudentsZero.has(s.id)){
-              const lastReason=s.reasons && s.reasons['d'+S.currentDay] && s.reasons['d'+S.currentDay].slice(-1)[0];
-              const teacher=lastReason?lastReason.teacher:'unbekannt';
-              if(teacher!==U.name){
-                lastBannerStudentId=s.id;
-                document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
-                document.getElementById('notif-s').textContent=`Gemeldet von ${teacher}`;
-                const b=document.getElementById('notif');
-                b.classList.add('on');
-                clearTimeout(window._nb);
-                window._nb=setTimeout(()=>b.classList.remove('on'),15000);
-                sendPush('⚠️ Alle Leben verloren!',`${s.name} – gemeldet von ${teacher}`,'kq-lives-'+s.id);
-                playAlarm();
-              }
-            }
-          });
-        }
-
         renderAll();
         remote=false;
+
+        if(!window._rolloverChecked){
+          window._rolloverChecked=true;
+          setTimeout(()=>{try{checkDateRollover();}catch(e){console.warn('rollover:',e)}},400);
+        }
       }
       syncDot('on');
       const l=document.getElementById('sync-lbl');if(l)l.textContent='Firebase · Sync aktiv';
@@ -1702,6 +1578,7 @@ function push(){
       currentLevel:S.currentLevel||1,
       currentDay:S.currentDay||1,
       currentLesson:S.currentLesson||1,
+      dayDate:S.dayDate||localDateISO(),
       lessonMode:S.lessonMode||'double',
       completedLevels:Array.isArray(S.completedLevels)?S.completedLevels:[],
       checkedCriteria:S.checkedCriteria||{},
@@ -1712,7 +1589,6 @@ function push(){
       activeBossDay:S.activeBossDay||null,
       customCriteria:S.customCriteria||{},
       passwords:S.passwords||{},
-      school:S.school||{},
       availableTraits:Array.isArray(S.availableTraits)?S.availableTraits:[],
       schedule:S.schedule||{},
     };
@@ -1729,7 +1605,7 @@ function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className
 function saveLocal(){try{localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
 function loadLocal(){
   try{const s=localStorage.getItem('kq_v7');if(s)Object.assign(S,JSON.parse(s));}catch(e){}
-  fixState();
+  fixState();  try{checkDateRollover();}catch(e){}
 }
 function fixState(){
   // Firebase returns arrays as objects with numeric keys - convert them back
@@ -1745,9 +1621,9 @@ function fixState(){
   if(!S.currentLevel)S.currentLevel=1;
   if(!S.currentDay)S.currentDay=1;
   if(!S.currentLesson)S.currentLesson=1;
+  if(!S.dayDate)S.dayDate=localDateISO();
   if(!S.lessonMode)S.lessonMode='double';
   if(!S.passwords || typeof S.passwords!=='object') S.passwords={};
-  if(!S.school || typeof S.school!=='object') S.school={name:'',address:'',contact:'',className:'',logoData:'',signatory:''};
   // Available traits library
   if(!Array.isArray(S.availableTraits) || S.availableTraits.length===0){
     // Defaults on first run
@@ -1756,11 +1632,7 @@ function fixState(){
         {id:'t1',label:'Klassensprecher:in'},
         {id:'t2',label:'Stellvertreter:in'},
         {id:'t3',label:'Darf alleine auf Toilette'},
-        {id:'t4',label:'Brillenträger:in'},
-        {id:'t5',label:'Hat Asthma / Inhalator'},
-        {id:'t6',label:'LRS'},
-        {id:'t7',label:'Dyskalkulie'},
-        {id:'t8',label:'Förderbedarf'}
+        {id:'t4',label:'Darf zur Beruhigung raus'}
       ];
     }
     if(!Array.isArray(S.availableTraits)){
@@ -1815,7 +1687,7 @@ function checkPush(){
   pushOK=p==='granted';
 
   if(p==='granted'){
-    if(hint)hint.textContent='✅ Aktiv – du erhältst Alarm bei Leben-0.';
+    if(hint)hint.textContent='✅ Aktiv – du erhältst wichtige Benachrichtigungen.';
     if(btn){btn.textContent='✅ Aktiviert';btn.disabled=true;}
     if(bar)bar.classList.add('hidden');
   } else if(p==='denied'){
@@ -2108,12 +1980,11 @@ function goPage(name){
   if(name==='students')renderStudents();
   if(name==='bank')renderRewards();
   if(name==='games')renderGames();
-  if(name==='game'){renderMap();renderCurInfo();renderDayTracker()}
+  if(name==='game'){checkDateRollover();renderMap();renderCurInfo();renderDayTracker()}
   if(name==='schedule')renderSchedule();
   if(name==='settings'){
     try{checkPush();}catch(e){}
     try{updatePushEnvInfo();}catch(e){}
-    try{loadSchoolFields();}catch(e){}
   }
   window.scrollTo(0,0);
 }
@@ -2123,8 +1994,10 @@ function renderAll(){
   const hs=document.getElementById('hud-stars'); if(hs) hs.textContent=S.totalStars;
   const pgG=document.getElementById('pg-games');
   if(pgG&&pgG.classList.contains('on'))renderGames();
-  const hd=document.getElementById('hud-day'); if(hd) hd.textContent=S.currentDay;
-  const db=document.getElementById('day-big'); if(db) db.textContent=S.currentDay;
+  const hp=document.getElementById('hud-date');
+  if(hp){const t=new Date();hp.textContent=t.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});}
+  const db=document.getElementById('date-big');
+  if(db){const t=new Date();db.textContent=t.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'});}
   const lb=document.getElementById('lesson-label-big');
   if(lb){
     let txt=lessonTypeLabel()+' '+lessonLabel();
@@ -2393,7 +2266,7 @@ function buildLevelSheet(){
 
   document.getElementById('sh-body').innerHTML=`
     <div class="sheet-title">${lvl.em} ${esc(lvl.name)}</div>
-    <div class="sheet-sub">Level ${lvl.id} · Tag ${S.currentDay} · 📚 ${lessonTypeLabel()} ${lessonLabel()}</div>
+    <div class="sheet-sub">Level ${lvl.id} · ${new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'short'})} · 📚 ${lessonTypeLabel()} ${lessonLabel()}</div>
 
     <div class="star-display">
       <span class="star-display-icon">⭐</span>
@@ -2443,19 +2316,12 @@ function buildLevelSheet(){
       <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
         ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig${countMarkedStars()>0?` · +${countMarkedStars()} ⭐`:''}
       </button>
-      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
-        🌙 Tag beenden → T${S.currentDay+1}
-      </button>
     </div>
   `;
 }
 
 function finishLessonFromSheet(){
   finishLesson();
-}
-function nextDayFromSheet(){
-  closeSheet();
-  setTimeout(()=>nextDay(),300);
 }
 
 function buildBossSheet(){
@@ -2497,9 +2363,6 @@ function buildBossSheet(){
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
       <button class="btn btn-green btn-block" onclick="finishLessonFromSheet()" style="font-size:.95rem;padding:14px 16px;margin-bottom:8px;line-height:1.3">
         ✓ ${lessonTypeLabel()} ${lessonLabel()} fertig${countMarkedStars()>0?` · +${countMarkedStars()} ⭐`:''}
-      </button>
-      <button class="btn btn-ghost btn-block btn-sm" onclick="nextDayFromSheet()" style="font-size:.78rem;line-height:1.3">
-        🌙 Tag beenden → T${S.currentDay+1}
       </button>
     </div>`;
 }
@@ -2759,347 +2622,6 @@ function finishLesson(){
     remote=false;
     toast('Fehler beim Stunden-Ende');
   }
-}
-
-/* SCHOOL / ELTERN-BRIEF */
-function saveSchoolField(key,value){
-  if(U.role!=='admin'){toast('Nur Admin');return}
-  if(!S.school || typeof S.school!=='object') S.school={};
-  S.school[key]=value;
-  // Debounce: save after short delay
-  clearTimeout(window._schoolSaveT);
-  window._schoolSaveT=setTimeout(()=>{push();},600);
-}
-
-function uploadLogo(ev){
-  if(U.role!=='admin'){toast('Nur Admin');return}
-  const file=ev.target.files[0];
-  if(!file)return;
-  if(file.size>500000){
-    toast('Bild zu groß (max 500 KB)');
-    ev.target.value='';
-    return;
-  }
-  const reader=new FileReader();
-  reader.onload=e=>{
-    if(!S.school) S.school={};
-    S.school.logoData=e.target.result;
-    push();
-    showLogoPreview();
-    toast('✓ Logo gespeichert');
-  };
-  reader.readAsDataURL(file);
-}
-
-function removeLogo(){
-  if(U.role!=='admin')return;
-  if(!confirm('Logo entfernen?'))return;
-  if(!S.school) S.school={};
-  S.school.logoData='';
-  push();
-  showLogoPreview();
-  toast('Logo entfernt');
-}
-
-function showLogoPreview(){
-  const img=document.getElementById('logo-preview');
-  const rm=document.getElementById('logo-rm-btn');
-  const hint=document.getElementById('logo-hint');
-  if(!img)return;
-  if(S.school && S.school.logoData){
-    img.src=S.school.logoData;
-    img.style.display='';
-    if(rm)rm.style.display='';
-    if(hint)hint.textContent='✓ Logo gespeichert · oben im Brief';
-  } else {
-    img.src='';
-    img.style.display='none';
-    if(rm)rm.style.display='none';
-    if(hint)hint.textContent='Optional · wird oben im Brief angezeigt';
-  }
-}
-
-function loadSchoolFields(){
-  // Populate form fields from state (called when settings tab opens)
-  const sc=S.school||{};
-  const m={'sch-name':'name','sch-addr':'address','sch-contact':'contact','sch-class':'className','sch-sig':'signatory'};
-  Object.keys(m).forEach(id=>{
-    const el=document.getElementById(id);
-    if(el && document.activeElement!==el) el.value=sc[m[id]]||'';
-  });
-  showLogoPreview();
-}
-
-/* STUDENT NOTES */
-let currentNoteStuId=null;
-let currentNoteTab='pos'; // 'pos' = positives, 'rem' = bemerkungen
-
-function openStuNotes(id){
-  const s=S.students.find(x=>x.id===id);
-  if(!s)return;
-  currentNoteStuId=id;
-  currentNoteTab='pos';
-  document.getElementById('notes-title').textContent=`📝 ${s.name}`;
-  const inPos=document.getElementById('note-input-pos');
-  if(inPos) inPos.value='';
-  const inTrait=document.getElementById('trait-input');
-  if(inTrait) inTrait.value='';
-  switchNoteTab('pos');
-  document.getElementById('notes-modal').classList.add('on');
-}
-
-function closeStuNotes(){
-  currentNoteStuId=null;
-  document.getElementById('notes-modal').classList.remove('on');
-}
-
-function switchNoteTab(tab){
-  currentNoteTab=tab;
-  const pos=document.getElementById('notes-tab-pos');
-  const traits=document.getElementById('notes-tab-traits');
-  const contPos=document.getElementById('notes-content-pos');
-  const contTraits=document.getElementById('notes-content-traits');
-  if(tab==='pos'){
-    pos.style.background='rgba(74,222,128,.18)';
-    pos.style.borderColor='var(--green)';
-    traits.style.background='';
-    traits.style.borderColor='';
-    if(contPos) contPos.style.display='';
-    if(contTraits) contTraits.style.display='none';
-    renderStuPositives();
-  } else {
-    traits.style.background='rgba(245,200,66,.18)';
-    traits.style.borderColor='var(--gold)';
-    pos.style.background='';
-    pos.style.borderColor='';
-    if(contPos) contPos.style.display='none';
-    if(contTraits) contTraits.style.display='';
-    renderTraits();
-  }
-}
-
-function renderStuPositives(){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s){closeStuNotes();return}
-  const list=document.getElementById('notes-list-pos');
-  if(!list)return;
-  let arr=s.positives;
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  }
-  if(arr.length===0){
-    list.innerHTML=`<div class="empty" style="padding:18px"><span class="empty-icon">✨</span>Noch nichts Positives festgehalten.</div>`;
-    return;
-  }
-  const sorted=[...arr].sort((a,b)=>(b.time||0)-(a.time||0));
-  list.innerHTML=sorted.map(n=>{
-    const t=n.time?new Date(n.time).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
-    return `<div style="background:rgba(74,222,128,.10);border:1px solid rgba(74,222,128,.32);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;display:flex;gap:8px;align-items:flex-start">
-      <div style="font-size:1rem;flex-shrink:0">✨</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:.85rem;color:var(--text);font-weight:600;line-height:1.4;word-break:break-word">${esc(n.text||'')}</div>
-        <div style="font-size:.68rem;color:var(--text-3);font-weight:700;margin-top:3px">${esc(n.author||'?')} · ${t}</div>
-      </div>
-      <button class="btn-del" onclick="delStuPositive('${n.id}')" title="Löschen">✕</button>
-    </div>`;
-  }).join('');
-}
-
-function addStuPositive(){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s){closeStuNotes();return}
-  const input=document.getElementById('note-input-pos');
-  const text=input.value.trim();
-  if(!text){toast('Notiz darf nicht leer sein');return}
-
-  const note={id:'n'+Date.now()+Math.random().toString(16).slice(2,5),text,author:U.name,time:Date.now()};
-
-  let arr=s.positives;
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  }
-  arr.push(note);
-  s.positives=arr;
-
-  input.value='';
-  saveLocal();
-  renderStuPositives();
-  renderStudents();
-  addLog({type:'positive',icon:'✨',text:`Positives: ${s.name}`,sub:`"${text}" · ${U.name}`});
-
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
-      if(idx===-1)return current;
-      let stuArr=arrFB[idx].positives;
-      if(!Array.isArray(stuArr)){
-        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
-      }
-      stuArr.push(note);
-      arrFB[idx].positives=stuArr;
-      return arrFB;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
-  }
-  toast('✨ Positives hinzugefügt');
-}
-
-function delStuPositive(noteId){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s)return;
-  if(!confirm('Diese Notiz löschen?'))return;
-
-  let arr=s.positives;
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  }
-  arr=arr.filter(n=>n && n.id!==noteId);
-  s.positives=arr;
-
-  saveLocal();
-  renderStuPositives();
-  renderStudents();
-
-  if(ref){
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arrFB.findIndex(x=>x&&x.id===s.id);
-      if(idx===-1)return current;
-      let stuArr=arrFB[idx].positives;
-      if(!Array.isArray(stuArr)){
-        stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
-      }
-      stuArr=stuArr.filter(n=>n && n.id!==noteId);
-      arrFB[idx].positives=stuArr;
-      return arrFB;
-    }).catch(()=>{});
-  }
-  toast('Gelöscht');
-}
-
-// === TRAITS ===
-function getStudentTraits(s){
-  let arr=s.traits;
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-  }
-  return arr;
-}
-
-function getAvailableTraits(){
-  let arr=S.availableTraits;
-  if(!Array.isArray(arr)){
-    arr=(arr && typeof arr==='object')?Object.values(arr).filter(x=>x!=null):[];
-    S.availableTraits=arr;
-  }
-  return arr;
-}
-
-function renderTraits(){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s){closeStuNotes();return}
-  const list=document.getElementById('traits-list');
-  if(!list)return;
-  const available=getAvailableTraits();
-  const active=getStudentTraits(s);
-  if(available.length===0){
-    list.innerHTML=`<div class="empty" style="padding:14px"><span class="empty-icon">⭐</span>Noch keine Eigenschaften definiert. Trag unten welche ein.</div>`;
-    return;
-  }
-  list.innerHTML=available.map(t=>{
-    const checked=active.includes(t.id);
-    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:5px;background:${checked?'rgba(245,200,66,.12)':'var(--glass)'};border:1px solid ${checked?'rgba(245,200,66,.36)':'var(--border-2)'};border-radius:var(--r);cursor:pointer">
-      <input type="checkbox" ${checked?'checked':''} onchange="toggleTrait('${t.id}')" style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
-      <div style="flex:1;min-width:0;font-size:.86rem;font-weight:600;color:var(--text);line-height:1.3;word-break:break-word">${esc(t.label)}</div>
-      ${U.role==='admin'?`<button class="btn-del" onclick="event.preventDefault();event.stopPropagation();delTraitFromLibrary('${t.id}')" title="Eigenschaft aus Liste löschen">✕</button>`:''}
-    </label>`;
-  }).join('');
-}
-
-function toggleTrait(traitId){
-  const s=S.students.find(x=>x.id===currentNoteStuId);
-  if(!s)return;
-  let arr=getStudentTraits(s);
-  const idx=arr.indexOf(traitId);
-  if(idx===-1){
-    arr.push(traitId);
-  } else {
-    arr.splice(idx,1);
-  }
-  s.traits=arr;
-  saveLocal();
-  renderTraits();
-  renderStudents();
-
-  // Sync
-  if(ref){
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idxFB=arrFB.findIndex(x=>x&&x.id===s.id);
-      if(idxFB===-1)return current;
-      arrFB[idxFB].traits=arr;
-      return arrFB;
-    }).catch(()=>{});
-  }
-}
-
-function addCustomTrait(){
-  if(U.role!=='admin'){toast('Nur Admin');return}
-  const input=document.getElementById('trait-input');
-  const label=input.value.trim();
-  if(!label){toast('Bezeichnung darf nicht leer sein');return}
-
-  let arr=getAvailableTraits();
-  // Check duplicate
-  if(arr.some(t=>t.label.toLowerCase()===label.toLowerCase())){
-    toast('Diese Eigenschaft existiert schon');
-    return;
-  }
-
-  const newTrait={id:'t'+Date.now()+Math.random().toString(16).slice(2,5),label};
-  arr.push(newTrait);
-  S.availableTraits=arr;
-  input.value='';
-  saveLocal();
-  push();
-  renderTraits();
-  toast('✓ Eigenschaft hinzugefügt');
-}
-
-function delTraitFromLibrary(traitId){
-  if(U.role!=='admin'){toast('Nur Admin');return}
-  const t=getAvailableTraits().find(x=>x.id===traitId);
-  if(!t)return;
-  if(!confirm(`Eigenschaft "${t.label}" aus der Liste löschen?\n\nDamit verschwindet sie auch bei allen Schülern.`))return;
-
-  // Remove from global list
-  S.availableTraits=getAvailableTraits().filter(x=>x.id!==traitId);
-  // Remove from all students
-  if(Array.isArray(S.students)){
-    S.students.forEach(stu=>{
-      let stuArr=getStudentTraits(stu);
-      stu.traits=stuArr.filter(id=>id!==traitId);
-    });
-  }
-  saveLocal();
-  push();
-  // Re-sync students
-  if(ref){
-    ref.child('students').transaction(current=>{
-      const arrFB=Array.isArray(current)?current:(current?Object.values(current):[]);
-      arrFB.forEach(stu=>{
-        if(stu){
-          let stuArr=stu.traits;
-          if(!Array.isArray(stuArr)) stuArr=(stuArr && typeof stuArr==='object')?Object.values(stuArr).filter(x=>x!=null):[];
-          stu.traits=stuArr.filter(id=>id!==traitId);
-        }
-      });
-      return arrFB;
-    }).catch(()=>{});
-  }
-  renderTraits();
-  toast('Gelöscht');
 }
 
 // === SCHEDULE / STUNDENPLAN ===
@@ -3581,262 +3103,8 @@ function editScheduleSettings(){
   toast('Tippe auf einen Block oder "+ Stunde" oben');
 }
 
-// Default texts for parent letter (can be overridden via state)
-const LETTER_DEFAULTS = {
-  intro: 'hiermit teilen wir Ihnen mit, dass Ihr Kind im heutigen Schultag wiederholt gegen die Klassenregeln verstoßen hat. Im Rahmen unseres Klassen-Verhaltenssystems wurden alle drei verfügbaren "Leben" verbraucht.',
-  vorfTitle: 'Konkrete Vorfälle des Tages:',
-  bitte: 'Wir bitten Sie, das Verhalten Ihres Kindes mit ihm zu besprechen und mit uns gemeinsam an einer Verbesserung zu arbeiten. Falls Sie Rückfragen haben oder ein Gespräch wünschen, können Sie uns gerne kontaktieren.',
-  sign: 'Bitte unterschreiben Sie diese Mitteilung und geben Sie sie Ihrem Kind am nächsten Schultag wieder mit.',
-  greet: 'Mit freundlichen Grüßen'
-};
 
-let pendingLetterStudentId = null;
 
-function printParentLetter(studentId){
-  const s=S.students.find(x=>x.id===studentId);
-  if(!s){toast('Schüler nicht gefunden');return}
-  if(typeof window.jspdf==='undefined'){
-    toast('PDF-Bibliothek lädt noch, bitte gleich erneut');
-    return;
-  }
-
-  pendingLetterStudentId = studentId;
-
-  // Collect default content
-  const sc=S.school||{};
-  const dk='d'+S.currentDay;
-  let reasons=(s.reasons && s.reasons[dk])||[];
-  if(!Array.isArray(reasons)){
-    reasons=(reasons && typeof reasons==='object')?Object.values(reasons).filter(x=>x!=null):[];
-  }
-  const reasonText = reasons.map(r=>r.reason||'Kein Grund angegeben').join('\n');
-
-  // Pre-fill the modal
-  document.getElementById('lt-sub').textContent = `Brief für ${s.name} · Du kannst alle Texte vor dem PDF-Export anpassen.`;
-  document.getElementById('lt-anrede').value = `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
-  document.getElementById('lt-intro').value = LETTER_DEFAULTS.intro;
-  document.getElementById('lt-vor-title').value = LETTER_DEFAULTS.vorfTitle;
-  document.getElementById('lt-vorf').value = reasonText || '(Keine Vorfälle dokumentiert)';
-  document.getElementById('lt-bitte').value = LETTER_DEFAULTS.bitte;
-  document.getElementById('lt-sign').value = LETTER_DEFAULTS.sign;
-  document.getElementById('lt-greet').value = LETTER_DEFAULTS.greet;
-
-  document.getElementById('letter-modal').classList.add('on');
-}
-
-function closeLetterModal(){
-  pendingLetterStudentId = null;
-  document.getElementById('letter-modal').classList.remove('on');
-}
-
-function resetLetterDefaults(){
-  if(!pendingLetterStudentId)return;
-  const s=S.students.find(x=>x.id===pendingLetterStudentId);
-  if(!s)return;
-  const dk='d'+S.currentDay;
-  let reasons=(s.reasons && s.reasons[dk])||[];
-  if(!Array.isArray(reasons)){
-    reasons=(reasons && typeof reasons==='object')?Object.values(reasons).filter(x=>x!=null):[];
-  }
-  const reasonText = reasons.map(r=>r.reason||'Kein Grund angegeben').join('\n');
-
-  document.getElementById('lt-anrede').value = `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
-  document.getElementById('lt-intro').value = LETTER_DEFAULTS.intro;
-  document.getElementById('lt-vor-title').value = LETTER_DEFAULTS.vorfTitle;
-  document.getElementById('lt-vorf').value = reasonText || '(Keine Vorfälle dokumentiert)';
-  document.getElementById('lt-bitte').value = LETTER_DEFAULTS.bitte;
-  document.getElementById('lt-sign').value = LETTER_DEFAULTS.sign;
-  document.getElementById('lt-greet').value = LETTER_DEFAULTS.greet;
-  toast('Standard wiederhergestellt');
-}
-
-function generateLetterPDF(){
-  if(!pendingLetterStudentId){closeLetterModal();return}
-  const s=S.students.find(x=>x.id===pendingLetterStudentId);
-  if(!s){closeLetterModal();return}
-
-  const sc=S.school||{};
-  const today=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'long',year:'numeric'});
-
-  // Read edited texts from modal
-  const anrede = document.getElementById('lt-anrede').value.trim() || `Sehr geehrte Erziehungsberechtigte von ${s.name}`;
-  const intro  = document.getElementById('lt-intro').value.trim();
-  const vorfTitle = document.getElementById('lt-vor-title').value.trim();
-  const vorfText = document.getElementById('lt-vorf').value;
-  const bitte  = document.getElementById('lt-bitte').value.trim();
-  const signReq= document.getElementById('lt-sign').value.trim();
-  const greet  = document.getElementById('lt-greet').value.trim() || 'Mit freundlichen Grüßen';
-
-  // Parse vorfTextarea into list (split by line, ignore empty)
-  const reasonList = vorfText.split('\n').map(l=>l.trim()).filter(l=>l.length>0 && l!=='(Keine Vorfälle dokumentiert)');
-
-  try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-
-    const pageW=210, marginL=25, marginR=25, marginT=25;
-    const contentW=pageW-marginL-marginR;
-    let y=marginT;
-
-    // ── HEADER ─────────────────────────────────────────────
-    let headerH=0;
-    if(sc.logoData){
-      try{
-        const logoMaxH=22;
-        const logoMaxW=50;
-        doc.addImage(sc.logoData, 'PNG', pageW-marginR-logoMaxW, y, logoMaxW, logoMaxH,'','FAST');
-        headerH=Math.max(headerH,logoMaxH);
-      }catch(imgErr){console.warn('Logo:',imgErr);}
-    }
-
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(11);
-    let infoY=y;
-    if(sc.name){doc.text(sc.name, marginL, infoY+4);infoY+=5;}
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
-    doc.setTextColor(60,60,60);
-    if(sc.address){doc.text(sc.address, marginL, infoY+4);infoY+=4;}
-    if(sc.contact){doc.text(sc.contact, marginL, infoY+4);infoY+=4;}
-    if(sc.className){
-      doc.setFont('helvetica','bold');
-      doc.setTextColor(0,0,0);
-      doc.text('Klasse: '+sc.className, marginL, infoY+5);
-      infoY+=5;
-    }
-    headerH=Math.max(headerH, infoY-y+2);
-    y += headerH + 6;
-
-    doc.setDrawColor(0,0,0);
-    doc.setLineWidth(0.5);
-    doc.line(marginL, y, pageW-marginR, y);
-    y += 10;
-
-    // ── DATE ───────────────────────────────────────────────
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(11);
-    doc.setTextColor(0,0,0);
-    let dateStr=today;
-    if(sc.address){
-      const city=sc.address.split(',').pop().trim().replace(/^\d+\s+/,'');
-      if(city) dateStr=city+', den '+today;
-    }
-    doc.text(dateStr, pageW-marginR, y, {align:'right'});
-    y += 12;
-
-    // ── TITLE ──────────────────────────────────────────────
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(14);
-    doc.text('Mitteilung an die Erziehungsberechtigten', marginL, y);
-    y += 10;
-
-    // ── BODY ───────────────────────────────────────────────
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(11);
-
-    // Anrede with underline for last name
-    const anredeY = y;
-    doc.text(anrede, marginL, anredeY);
-    const nameWidth = doc.getTextWidth(anrede);
-    doc.line(marginL+nameWidth+2, anredeY+1, marginL+nameWidth+62, anredeY+1);
-    doc.text(',', marginL+nameWidth+64, anredeY);
-    y += 10;
-
-    // Intro paragraph
-    if(intro){
-      const p1Lines = doc.splitTextToSize(intro, contentW);
-      doc.text(p1Lines, marginL, y);
-      y += p1Lines.length * 5.5 + 4;
-    }
-
-    // Incidents box
-    if(reasonList.length>0 && vorfTitle){
-      // Pre-calculate height
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(10.5);
-      let boxH = 8; // title space
-      reasonList.forEach(r=>{
-        const lines = doc.splitTextToSize('•  '+r, contentW-12);
-        boxH += lines.length * 5 + 2;
-      });
-      boxH += 3;
-      const boxStartY = y;
-
-      // Draw box background and accent
-      doc.setFillColor(244,244,244);
-      doc.rect(marginL, boxStartY, contentW, boxH, 'F');
-      doc.setFillColor(204,51,51);
-      doc.rect(marginL, boxStartY, 1.5, boxH, 'F');
-
-      // Title
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(11);
-      doc.setTextColor(0,0,0);
-      doc.text(vorfTitle, marginL+5, boxStartY+5);
-      let yy = boxStartY + 8;
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(10.5);
-      reasonList.forEach(r=>{
-        const lines = doc.splitTextToSize('•  '+r, contentW-12);
-        doc.text(lines, marginL+8, yy+4);
-        yy += lines.length * 5 + 2;
-      });
-      y = boxStartY + boxH + 6;
-    } else if(vorfTitle){
-      doc.setFont('helvetica','italic');
-      doc.setFontSize(10.5);
-      doc.setTextColor(100,100,100);
-      doc.text('Keine konkreten Vorfälle dokumentiert.', marginL, y);
-      doc.setTextColor(0,0,0);
-      y += 8;
-    }
-
-    // Bitte
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(11);
-    if(bitte){
-      const p2Lines = doc.splitTextToSize(bitte, contentW);
-      doc.text(p2Lines, marginL, y);
-      y += p2Lines.length * 5.5 + 4;
-    }
-
-    // Sign request
-    if(signReq){
-      const p3Lines = doc.splitTextToSize(signReq, contentW);
-      doc.text(p3Lines, marginL, y);
-      y += p3Lines.length * 5.5 + 4;
-    }
-
-    // Greeting
-    doc.text(greet, marginL, y);
-    y += 25;
-
-    // ── SIGNATURES ─────────────────────────────────────────
-    const sigW = (contentW - 10) / 2;
-    const sigY = y;
-    doc.setDrawColor(0,0,0);
-    doc.setLineWidth(0.4);
-    doc.line(marginL, sigY, marginL+sigW, sigY);
-    doc.line(marginL+sigW+10, sigY, marginL+contentW, sigY);
-
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(10);
-    doc.text(sc.signatory||'Klassenlehrer:in', marginL, sigY+5);
-    doc.setFontSize(8);
-    doc.setTextColor(100,100,100);
-    doc.text('Unterschrift Lehrkraft', marginL, sigY+9);
-    doc.text('Unterschrift Erziehungsberechtigte', marginL+sigW+10, sigY+9);
-
-    // Save
-    const fileName = `Elternbrief_${s.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-    doc.save(fileName);
-    closeLetterModal();
-    toast('✓ PDF erstellt');
-  }catch(err){
-    console.error('PDF generation failed:',err);
-    toast('Fehler beim PDF erstellen');
-  }
-}
 
 function changeTeacherPw(){
   if(U.role!=='admin'){toast('Nur Admin');return}
@@ -3939,35 +3207,69 @@ function finishBoss(){
   confetti(60);push();closeSheet();renderAll();
   toast(`⚔️ ${boss.name} besiegt! +5 Sterne 🌟`);
 }
-function nextDay(){
-  // Count stars earned TODAY before advancing (across all lessons)
-  let todayStars=0;
-  Object.keys(S.checkedCriteria).forEach(k=>{
-    if(k.startsWith('d'+S.currentDay+'l')){
-      Object.values(S.checkedCriteria[k]).forEach(crits=>{
-        if(Array.isArray(crits)) todayStars+=crits.length;
-      });
-    }
-  });
+// ── DATE-BASED DAY SYSTEM ──
+function localDateISO(d){
+  const dt=d||new Date();
+  const y=dt.getFullYear();
+  const m=String(dt.getMonth()+1).padStart(2,'0');
+  const day=String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 
+function formatDateDE(iso){
+  if(!iso) return '';
+  const parts=iso.split('-');
+  if(parts.length!==3) return iso;
+  const dt=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+  return dt.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'short'});
+}
+
+function daysBetween(isoA, isoB){
+  if(!isoA || !isoB) return 0;
+  const a=new Date(isoA+'T00:00:00');
+  const b=new Date(isoB+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+
+function checkDateRollover(){
+  // If the calendar date changed since the current internal day started,
+  // advance the internal day counter automatically (check boss).
+  if(remote) return;
+  const today=localDateISO();
+  if(!S.dayDate){ S.dayDate=today; return; }
+  const diff=daysBetween(S.dayDate, today);
+  if(diff<=0) return;
+  const steps=Math.min(diff, 10);
+  for(let i=0;i<steps;i++){
+    advanceDayInternal(true);
+  }
+  S.dayDate=today;
+  push();
+  renderAll();
+}
+
+function advanceDayInternal(silent){
   S.currentDay++;
-  S.currentLesson=1; // reset lesson counter for new day
-  S.students.forEach(s=>s.lives=MAX_LIVES);
-
-  // Boss trigger: every 5 days (T5, T10, T15, T20)
-  const isBossDay=S.currentDay%5===0;
-  if(isBossDay && !S.defeatedBosses.includes(S.currentDay)){
+  S.currentLesson=1;
+  const isBoss=S.currentDay%5===0;
+  if(isBoss && !S.defeatedBosses.includes(S.currentDay)){
     S.activeBossDay=S.currentDay;
     const b=BOSSES[bossIdx(S.currentDay)];
-    addLog({type:'boss-spawn',icon:'👹',text:`Bosskampf: ${b.name}`,sub:`Tag ${S.currentDay}`});
-    sendPush('⚔️ Bosskampf!',`Tag ${S.currentDay}: Der ${b.name} erscheint!`,'kq-boss');
+    addLog({type:'boss-spawn',icon:'👹',text:`Bosskampf: ${b.name}`,sub:formatDateDE(localDateISO())});
+    if(!silent) sendPush('⚔️ Bosskampf!',`${b.name} erscheint!`,'kq-boss');
   } else {
     S.activeBossDay=null;
   }
+  addLog({type:'day',icon:'📅',text:`Neuer Tag: ${formatDateDE(localDateISO())}`,sub:isBoss?'⚔️ Bosskampf':'Neuer Schultag'});
+}
 
-  addLog({type:'day',icon:'📅',text:`Tag ${S.currentDay} gestartet`,sub:`${todayStars} Sterne gestern · ${lessonLabel(1)} · Leben zurückgesetzt`});
+// Manual override for admins (skip a day / trigger boss early)
+function nextDay(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  advanceDayInternal(false);
+  S.dayDate=localDateISO();
   push();renderAll();
-  toast(`Tag ${S.currentDay}${isBossDay?' – ⚔️ Bosskampf!':''}`);
+  toast(`Weiter: ${formatDateDE(S.dayDate)}${S.currentDay%5===0?' – ⚔️ Bosskampf!':''}`);
 }
 /* EDIT CRITERIA */
 let editingLvlId=null;
@@ -4027,7 +3329,6 @@ function confirmReset(){
   S.defeatedBosses=[];
   S.activeBossDay=null;
   S.log=[];
-  S.students.forEach(s=>s.lives=MAX_LIVES);
   document.getElementById('reset-modal').classList.remove('on');
   push();
   renderAll();
@@ -4039,7 +3340,7 @@ function addStu(){
   if(U.role!=='admin'){toast('Nur Klassenlehrer:innen');return}
   const inp=document.getElementById('stu-inp');
   const name=inp.value.trim();if(!name)return;
-  const newStudent={id:'s'+Date.now(),name,lives:MAX_LIVES,reasons:{}};
+  const newStudent={id:'s'+Date.now(),name,stars:0};
 
   // Update local state immediately
   S.students.push(newStudent);
@@ -4088,10 +3389,7 @@ function renderStudents(){
   el.innerHTML=S.students.map(s=>{
     const c=cols[s.name.charCodeAt(0)%cols.length];
     const ini=s.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
-    const hearts=Array.from({length:MAX_LIVES},(_,i)=>
-      `<svg class="sheart${i>=s.lives?' lost':''}" viewBox="0 0 24 24" fill="#f87171">
-        <path d="M12 21s-7-4.35-9.5-8.5C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8.5C19 16.65 12 21 12 21z"/>
-      </svg>`).join('');
+    const stars=s.stars||0;
     // Active traits as badges
     const traitIds=getStudentTraits(s);
     const traitLib=getAvailableTraits();
@@ -4100,31 +3398,67 @@ function renderStudents(){
       return t?`<span style="display:inline-block;font-size:.62rem;font-weight:700;background:rgba(245,200,66,.16);color:var(--gold);border:1px solid rgba(245,200,66,.36);padding:1px 6px;border-radius:999px;margin-right:3px;margin-top:2px;line-height:1.4;white-space:nowrap">${esc(t.label)}</span>`:'';
     }).join('');
 
-    return `<div class="stu-card${s.lives<=0?' zero':''}">
+    return `<div class="stu-card">
       <div class="stu-av" style="background:${c};border-color:${c}aa">${ini}</div>
       <div class="stu-info">
         <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
-        <div class="stu-hearts">${hearts}</div>
+        <div class="stu-stars">⭐ <span class="stu-stars-num">${stars}</span></div>
         ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
       </div>
       <div class="stu-actions">
         <button class="btn-restore" onclick="openStuNotes('${s.id}')" title="Notizen" style="background:#5a3d8a;border-color:#fff;color:#fff">
           📝
         </button>
-        ${s.lives<=0?`<button class="btn-restore" onclick="printParentLetter('${s.id}')" title="Eltern-Brief drucken" style="background:#3a2870;border-color:#fff;color:#fff">
-          🖨️
-        </button>`:''}
-        ${s.lives>0
-          ?`<button class="btn-life" onclick="askLife('${s.id}')">−</button>`
-          :`<button class="btn-restore" onclick="restoreOne('${s.id}')">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
-              </svg>
-            </button>`}
+        ${stars>0?`<button class="btn-restore" onclick="takeStar('${s.id}')" title="Stern zurücknehmen (Korrektur)" style="background:rgba(255,255,255,.08);border-color:var(--border-2);color:var(--text-3)">−</button>`:''}
+        <button class="btn-star-give" onclick="giveStar('${s.id}')" title="Stern vergeben">+⭐</button>
         ${U.role==='admin'?`<button class="btn-del" onclick="removeStu('${s.id}')">✕</button>`:''}
       </div>
     </div>`;
   }).join('');
+}
+
+/* INDIVIDUAL STUDENT STARS — positive Verstärkung fürs Kind */
+function giveStar(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  s.stars=(s.stars||0)+1;
+  saveLocal();
+  renderStudents();
+  addLog({type:'stustar',icon:'🌟',text:`+1 ⭐ für ${s.name}`,sub:`jetzt ${s.stars} · von ${U.name}`});
+  try{miniConfetti();}catch(e){}
+  toast(`🌟 ${s.name}: ${s.stars} ⭐`);
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===id);
+      if(idx===-1)return current;
+      arr[idx].stars=(arr[idx].stars||0)+1;
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+}
+
+function takeStar(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s||(s.stars||0)<=0)return;
+  if(!confirm(`Einen Stern von ${s.name} zurücknehmen? (Nur für Fehleingaben)`))return;
+  s.stars=Math.max(0,(s.stars||0)-1);
+  saveLocal();
+  renderStudents();
+  addLog({type:'stustar',icon:'↺',text:`Korrektur: −1 ⭐ bei ${s.name}`,sub:`jetzt ${s.stars} · von ${U.name}`});
+
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===id);
+      if(idx===-1)return current;
+      arr[idx].stars=Math.max(0,(arr[idx].stars||0)-1);
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
 }
 
 function countStuNotes(s){
@@ -4138,116 +3472,6 @@ function countStuNotes(s){
     n+=arr.length;
   }
   return n;
-}
-function askLife(id){
-  const s=S.students.find(x=>x.id===id);if(!s||s.lives<=0)return;
-  pendingLif={id};
-  document.getElementById('rm-title').textContent='⚔️ Leben abziehen';
-  document.getElementById('rm-sub').textContent=`${s.name} · ${s.lives}/${MAX_LIVES}`;
-  document.getElementById('reason-ta').value='';
-  document.getElementById('reason-modal').classList.add('on');
-}
-function setReason(t){document.getElementById('reason-ta').value=t}
-function closeReasonModal(){pendingLif=null;document.getElementById('reason-modal').classList.remove('on')}
-function confirmLife(){
-  if(!pendingLif)return;
-  const s=S.students.find(x=>x.id===pendingLif.id);
-  if(!s||s.lives<=0){closeReasonModal();return}
-  const reason=(document.getElementById('reason-ta').value||'').trim()||'Kein Grund';
-  const newLives=s.lives-1;
-  const zero=newLives<=0;
-  const dk='d'+S.currentDay;
-  const reasonEntry={reason,teacher:U.name,time:Date.now()};
-  const studentId=pendingLif.id;
-
-  // Update local immediately
-  s.lives=newLives;
-  if(!s.reasons)s.reasons={};
-  if(!s.reasons[dk])s.reasons[dk]=[];
-  s.reasons[dk].push(reasonEntry);
-  saveLocal();
-  renderStudents();
-
-  closeReasonModal();
-  addLog({type:zero?'severe':'life',icon:zero?'⚠️':'💔',text:`${zero?'Alle Leben: ':'Leben: '}${s.name}`,sub:`${reason} · ${U.name}`,severe:zero});
-
-  if(zero)triggerAlert(s);else toast(`${s.name}: ${newLives} übrig`);
-
-  // Sync to Firebase
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arr.findIndex(x=>x&&x.id===studentId);
-      if(idx===-1)return current;
-      arr[idx].lives=Math.max(0,(arr[idx].lives||0)-1);
-      if(!arr[idx].reasons)arr[idx].reasons={};
-      if(!arr[idx].reasons[dk])arr[idx].reasons[dk]=[];
-      arr[idx].reasons[dk].push(reasonEntry);
-      return arr;
-    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
-  }
-}
-let lastBannerStudentId=null;
-function triggerAlert(s){
-  lastBannerStudentId=s.id;
-  document.getElementById('notif-t').textContent=`${s.name} hat alle Leben verloren!`;
-  document.getElementById('notif-s').textContent=`Gemeldet von ${U.name}`;
-  const b=document.getElementById('notif');
-  b.classList.add('on');clearTimeout(window._nb);window._nb=setTimeout(()=>b.classList.remove('on'),15000);
-  sendPush('⚠️ Alle Leben verloren!',`${s.name} – gemeldet von ${U.name}`,'kq-lives-'+s.id);
-  playAlarm();
-}
-function hideNotif(){document.getElementById('notif').classList.remove('on');lastBannerStudentId=null;}
-function printFromBanner(){
-  if(lastBannerStudentId) printParentLetter(lastBannerStudentId);
-  else toast('Kein Schüler ausgewählt');
-}
-function restoreOne(id){
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      const idx=arr.findIndex(x=>x&&x.id===id);
-      if(idx===-1)return current;
-      arr[idx].lives=MAX_LIVES;
-      return arr;
-    }).then(()=>{
-      syncDot('on');
-      const s=S.students.find(x=>x.id===id);
-      if(s) toast(`${s.name}: zurück`);
-    }).catch(()=>syncDot('off'));
-  } else {
-    const s=S.students.find(x=>x.id===id);
-    if(s){s.lives=MAX_LIVES;saveLocal();renderStudents();toast(`${s.name}: zurück`)}
-  }
-}
-function restoreAll(){
-  if(!confirm('Alle Leben zurücksetzen?'))return;
-  if(ref){
-    syncDot('spin');
-    ref.child('students').transaction(current=>{
-      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
-      arr.forEach(s=>{if(s)s.lives=MAX_LIVES});
-      return arr;
-    }).then(()=>{syncDot('on');toast('Alle zurückgesetzt')}).catch(()=>syncDot('off'));
-  } else {
-    S.students.forEach(s=>s.lives=MAX_LIVES);
-    saveLocal();renderStudents();toast('Alle zurückgesetzt');
-  }
-}
-
-function playAlarm(){
-  try{const ctx=new (window.AudioContext||window.webkitAudioContext)();const t=ctx.currentTime;
-    [0,.25,.5].forEach(off=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type='triangle';o.frequency.setValueAtTime(880,t+off);
-      o.frequency.exponentialRampToValueAtTime(440,t+off+.22);
-      g.gain.setValueAtTime(.0001,t+off);g.gain.exponentialRampToValueAtTime(.35,t+off+.02);
-      g.gain.exponentialRampToValueAtTime(.0001,t+off+.22);
-      o.connect(g);g.connect(ctx.destination);o.start(t+off);o.stop(t+off+.24);
-    });
-  }catch(e){}
 }
 
 /* REWARDS */
@@ -4339,7 +3563,7 @@ function renderLog(){
   if(!el)return;
   let entries=S.log||[];
   if(logFilter==='sev')entries=entries.filter(e=>e.severe||e.type==='severe');
-  else if(logFilter==='life')entries=entries.filter(e=>e.type==='life'||e.type==='severe');
+  else if(logFilter==='life')entries=entries.filter(e=>e.type==='stustar');
   else if(logFilter==='stars')entries=entries.filter(e=>['stars','levelup','boss'].includes(e.type));
   else if(logFilter==='notes')entries=entries.filter(e=>['positive'].includes(e.type));
   else if(logFilter==='today'){const t=new Date();t.setHours(0,0,0,0);entries=entries.filter(e=>e.time>=t.getTime())}
