@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Montagsmaler 🎨</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Bungee&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --paperbg:#f6f0e2;
+    --card:#fffdf6;
+    --ink:#3a332c;
+    --ink-soft:#7a7263;
+    --line:#3a332c;
+    --sun:#ffd43b;
+    --teamA:#4dabf7;
+    --teamB:#ff6b6b;
+    --paper:#ffffff;
+    --grün:#37b24d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Patrick Hand","Comic Sans MS",system-ui,sans-serif;
+    color:var(--ink); overflow:hidden;
+    user-select:none;-webkit-user-select:none; touch-action:manipulation;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(77,171,247,.14) 0 90px, transparent 91px),
+      radial-gradient(circle at 88% 12%, rgba(255,107,107,.14) 0 70px, transparent 71px),
+      radial-gradient(circle at 82% 85%, rgba(255,212,59,.20) 0 110px, transparent 111px),
+      radial-gradient(circle at 15% 88%, rgba(55,178,77,.13) 0 80px, transparent 81px),
+      radial-gradient(circle at 55% 45%, rgba(190,75,219,.07) 0 130px, transparent 131px),
+      var(--paperbg);
+  }
+  h1,h2,.display{font-family:"Patrick Hand",cursive;letter-spacing:.02em;}
+  .digits{font-family:"Bungee",monospace;}
+  button{font-family:inherit;border:none;cursor:pointer;color:var(--ink);}
+  button:focus-visible{outline:3px solid var(--teamA);outline-offset:2px;}
+
+  .screen{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden;}
+  .screen.active{display:flex;}
+  #screen-start,#screen-editor,#screen-set,#screen-join{
+    padding:1.2rem;gap:1rem;overflow-y:auto;align-items:center;justify-content:center;
+  }
+  #screen-editor,#screen-set{justify-content:flex-start;}
+
+  /* ---------- Start ---------- */
+  #screen-start h1{
+    font-size:clamp(2.8rem,7.5vw,5.2rem);text-align:center;line-height:1;
+  }
+  #screen-start h1 .brush{display:inline-block;animation:wiggle 2.2s ease-in-out infinite;}
+  @keyframes wiggle{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg) translateY(-6px)}}
+  .subtitle{color:var(--ink-soft);font-size:1.2rem;text-align:center;margin-top:-.5rem;}
+  .setup-card,.editor-card{
+    background:var(--card);border:3px solid var(--line);border-radius:18px;
+    padding:1.4rem 1.6rem;width:min(680px,94vw);
+    display:flex;flex-direction:column;gap:1rem;
+    box-shadow:7px 8px 0 rgba(58,51,44,.14);
+  }
+  .setup-card{transform:rotate(-.4deg);}
+  .editor-card{width:min(760px,96vw);}
+  .row{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;}
+  .row label{font-weight:700;min-width:9rem;font-size:1.15rem;}
+  .team-inputs{display:flex;gap:.8rem;width:100%;}
+  .team-inputs .team-box{flex:1;display:flex;flex-direction:column;gap:.35rem;}
+  .team-box span{font-weight:700;font-size:1rem;}
+  .team-box:nth-child(1) span{color:#1c7ed6;}
+  .team-box:nth-child(2) span{color:#e03131;}
+  input[type=text],textarea,select{
+    background:#fff;border:2px solid var(--line);border-radius:12px;
+    color:var(--ink);font-size:1.15rem;padding:.7rem .9rem;width:100%;
+    font-family:inherit;
+  }
+  textarea{min-height:8rem;resize:vertical;font-size:1.05rem;}
+  select{flex:1;min-width:0;width:auto;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teamA);box-shadow:0 0 0 3px rgba(77,171,247,.25);}
+  .seg{display:flex;gap:.4rem;flex:1;}
+  .seg button{
+    flex:1;background:#fff;border:2px solid var(--line);border-radius:12px;
+    padding:.6rem .4rem;font-size:1.1rem;font-weight:700;min-height:3rem;
+  }
+  .seg button.sel{background:var(--sun);}
+  .big-btn{
+    background:var(--sun);color:var(--ink);
+    font-family:"Patrick Hand";font-size:2rem;padding:.9rem;border-radius:16px;
+    min-height:4.3rem;border:3px solid var(--line);
+    box-shadow:5px 6px 0 rgba(58,51,44,.25);
+    transition:transform .08s, box-shadow .08s;
+  }
+  .big-btn:active{transform:translate(3px,4px);box-shadow:1px 1px 0 rgba(58,51,44,.25);}
+  .ghost-btn{
+    background:#fff;border:2px solid var(--line);border-radius:14px;
+    font-size:1.15rem;font-weight:700;padding:.75rem 1.2rem;min-height:3.3rem;
+  }
+  .ghost-btn:active{background:#f0e9d8;}
+  .hint{color:var(--ink-soft);font-size:1rem;line-height:1.35;}
+  #start-error{
+    display:none;background:#fff0f0;border:3px dashed #e03131;border-radius:14px;
+    color:#c92a2a;font-weight:700;font-size:1.1rem;padding:.8rem 1rem;line-height:1.4;
+  }
+  .icon-btns{position:absolute;top:.4rem;right:.5rem;display:flex;gap:.4rem;z-index:30;}
+  .icon-btn{
+    background:#fff;border:2px solid var(--line);border-radius:12px;
+    width:3rem;height:3rem;font-size:1.3rem;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ---------- Host / Spiel ---------- */
+  #screen-game{gap:0;}
+  .topbar{
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    background:var(--card);border-bottom:3px solid var(--line);
+    padding:.5rem 1rem;gap:.6rem;
+  }
+  .tb-team{display:flex;align-items:center;gap:.7rem;min-width:0;}
+  .tb-team.right{flex-direction:row-reverse;}
+  .tb-name{
+    font-family:"Patrick Hand";font-size:clamp(1.1rem,2.6vw,1.8rem);color:#fff;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding:.1rem .8rem;border-radius:10px;border:2px solid var(--line);
+  }
+  .tb-team.left .tb-name{background:var(--teamA);}
+  .tb-team.right .tb-name{background:var(--teamB);}
+  .tb-score{
+    font-family:"Bungee";font-size:clamp(1.3rem,3.4vw,2.2rem);color:var(--ink);
+    background:var(--sun);border:2px solid var(--line);border-radius:10px;padding:.02rem .5rem;
+  }
+  .tb-mid{display:flex;flex-direction:column;align-items:center;gap:.1rem;min-width:0;}
+  .round-pill{
+    font-weight:700;font-size:clamp(1rem,2.2vw,1.3rem);color:#fff;
+    padding:.2rem .9rem;border-radius:999px;background:var(--ink);
+    border:2px solid var(--line);white-space:nowrap;transition:background .3s;
+  }
+  .tb-timer{font-family:"Bungee";font-size:clamp(.9rem,2.2vw,1.3rem);color:var(--ink);min-height:1.3em;}
+  .timer-line{height:9px;background:#e8dfc9;border-bottom:2px solid var(--line);}
+  .timer-line .fill{height:100%;width:100%;background:var(--grün);transition:width .2s linear;}
+
+  .board-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.9rem;padding:1rem;min-height:0;}
+  .canvas-wrap{
+    background:var(--paper);border:3px solid var(--line);border-radius:6px;
+    box-shadow:8px 10px 0 rgba(58,51,44,.16);
+    aspect-ratio:1.6;
+    width:min(96%, calc((100dvh - 250px) * 1.6));
+    max-width:1200px;
+    position:relative;overflow:visible;
+  }
+  .canvas-wrap::before,.canvas-wrap::after{ /* Klebeband-Ecken */
+    content:"";position:absolute;width:110px;height:34px;top:-16px;
+    background:rgba(233,214,160,.85);border:1px solid rgba(58,51,44,.25);
+    box-shadow:0 2px 4px rgba(58,51,44,.15);
+  }
+  .canvas-wrap::before{left:-28px;transform:rotate(-38deg);}
+  .canvas-wrap::after{right:-28px;transform:rotate(38deg);}
+  .canvas-wrap canvas{width:100%;height:100%;display:block;touch-action:none;border-radius:3px;}
+  .canvas-msg{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;color:var(--ink-soft);font-size:clamp(1.3rem,3.2vw,2.2rem);font-weight:700;
+    font-family:"Patrick Hand";padding:1.5rem;pointer-events:none;
+  }
+  .host-controls{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;}
+  .btn-guessed{
+    background:var(--grün);color:#fff;
+    font-family:"Patrick Hand";font-size:1.6rem;border-radius:16px;border:3px solid var(--line);
+    padding:.7rem 1.6rem;min-height:3.9rem;box-shadow:4px 5px 0 rgba(58,51,44,.25);
+  }
+  .btn-guessed:active{transform:translate(2px,3px);box-shadow:1px 1px 0 rgba(58,51,44,.25);}
+  .btn-giveup{
+    background:#fff;border:2px solid var(--line);border-radius:16px;
+    font-weight:700;font-size:1.15rem;padding:.7rem 1.4rem;min-height:3.9rem;
+  }
+
+  /* ---------- Tablet ---------- */
+  #screen-pad{padding:.8rem .8rem 1rem;gap:.7rem;}
+  .pad-head{
+    font-family:"Patrick Hand";font-size:clamp(1.4rem,4.5vw,2rem);text-align:center;color:#fff;
+    padding:.4rem;border-radius:14px;background:var(--ink);border:2px solid var(--line);
+  }
+  .pad-status{
+    text-align:center;font-size:clamp(1.15rem,3.6vw,1.5rem);font-weight:700;
+    min-height:1.6rem;
+  }
+  .term-banner{
+    display:none;align-items:center;justify-content:center;gap:.9rem;
+    background:var(--sun);border:3px solid var(--line);border-radius:14px;padding:.4rem .9rem;
+    box-shadow:3px 4px 0 rgba(58,51,44,.2);
+  }
+  .term-banner .term{
+    font-family:"Patrick Hand";font-size:clamp(1.6rem,5.5vw,2.3rem);color:var(--ink);
+    text-align:center;
+  }
+  .term-banner .skip{
+    background:#fff;border:2px solid var(--line);border-radius:10px;font-weight:700;font-size:1rem;
+    padding:.45rem .8rem;flex:none;min-height:2.8rem;
+  }
+  #pad-canvas-wrap{flex:1;min-height:0;width:auto;align-self:center;max-width:100%;}
+  .toolbar{display:none;gap:.5rem;justify-content:center;flex-wrap:wrap;align-items:center;}
+  .tool{
+    width:3.1rem;height:3.1rem;border-radius:50%;border:3px solid var(--line);
+    font-size:1.25rem;display:flex;align-items:center;justify-content:center;flex:none;
+    background:#fff;
+  }
+  .tool.sel{box-shadow:0 0 0 4px var(--sun);}
+  .tool.wide{width:auto;padding:0 .9rem;border-radius:14px;font-size:1.05rem;font-weight:700;}
+  .pad-foot{display:flex;justify-content:space-between;align-items:center;gap:.8rem;}
+  .pad-foot span{font-family:"Bungee";font-size:1.1rem;color:var(--ink);}
+  body.pad-only .icon-btns{display:none !important;}
+  body.pad-only #btn-pad-leave{display:none !important;}
+  body.pad-only{overscroll-behavior:none;}
+
+  /* ---------- Editor ---------- */
+  .editor-card h2{font-size:1.9rem;}
+  .item-list{display:flex;flex-direction:column;gap:.5rem;max-height:38vh;overflow-y:auto;}
+  .item-row{
+    display:flex;gap:.6rem;align-items:center;background:#f6efdd;
+    border:2px solid rgba(58,51,44,.25);border-radius:12px;padding:.5rem .8rem;font-size:1.05rem;
+  }
+  .item-row .qa{flex:1;min-width:0;}
+  .item-row .qa b{color:var(--ink);}
+  .del-btn{background:#e03131;color:#fff;border:2px solid var(--line);border-radius:10px;width:2.6rem;height:2.6rem;font-size:1.1rem;flex:none;}
+  .set-row{
+    display:flex;justify-content:space-between;align-items:center;gap:.8rem;
+    background:#fff;border:2px solid var(--line);border-radius:14px;
+    padding:.85rem 1.1rem;font-size:1.2rem;min-height:3.8rem;width:100%;text-align:left;
+  }
+  .set-row:active{background:#f0e9d8;}
+  .set-row-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .set-row-meta{color:var(--ink-soft);font-weight:700;white-space:nowrap;flex:none;}
+  .method-btns{display:flex;gap:.8rem;}
+  .method-btns .ghost-btn{flex:1;}
+  .method-btns .ghost-btn.sel{background:var(--sun);}
+  .list-head{display:flex;justify-content:space-between;align-items:baseline;}
+  .list-head h3{font-size:1.4rem;font-family:"Patrick Hand";}
+  .count-badge{color:var(--ink-soft);font-weight:700;}
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:1.1rem;background:rgba(45,38,30,.9);z-index:50;text-align:center;padding:2rem;
+    color:#fff;
+  }
+  .overlay.active{display:flex;}
+  .overlay h2{font-size:clamp(2.4rem,8vw,5rem);}
+  .overlay .who{font-size:clamp(1.3rem,3.8vw,2.1rem);font-weight:700;}
+  .reveal-term{
+    font-family:"Patrick Hand";font-size:clamp(2.2rem,9vw,5rem);color:var(--ink);
+    background:var(--sun);border:3px solid #fff;border-radius:18px;padding:.15em .6em;
+    box-shadow:6px 7px 0 rgba(0,0,0,.3);transform:rotate(-1deg);
+  }
+  .qr-row{display:flex;gap:1.6rem;flex-wrap:wrap;justify-content:center;}
+  .qr-box{
+    background:#fff;border-radius:16px;padding:.8rem .8rem .6rem;
+    display:flex;flex-direction:column;align-items:center;gap:.5rem;
+    box-shadow:0 8px 25px rgba(0,0,0,.4);
+  }
+  .qr-label{font-weight:900;font-size:1.05rem;}
+  .qr-box img,.qr-box canvas{display:block;}
+  .room-code-inline{font-family:"Bungee";color:var(--sun);letter-spacing:.12em;padding:0 .2em;}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:60;}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="icon-btns">
+  <button class="icon-btn" id="btn-sound" title="Ton an/aus">🔊</button>
+  <button class="icon-btn" id="btn-fullscreen" title="Vollbild">⛶</button>
+  <button class="icon-btn" id="btn-home" title="Zum Startbildschirm" style="display:none">🏠</button>
+</div>
+
+<!-- ============ START ============ -->
+<div class="screen active" id="screen-start">
+  <h1><span class="brush">🎨</span> Montagsmaler</h1>
+  <p class="subtitle">Ein Tablet zeichnet, der große Bildschirm zeigt's, die Klasse rät!</p>
+
+  <div class="setup-card">
+    <div class="team-inputs">
+      <div class="team-box">
+        <span>⬤ Team Blau</span>
+        <input type="text" id="nameA" value="Team Blau" maxlength="16">
+      </div>
+      <div class="team-box">
+        <span>⬤ Team Rot</span>
+        <input type="text" id="nameB" value="Team Rot" maxlength="16">
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Begriffe aus</label>
+      <select id="set-select"></select>
+    </div>
+
+    <div class="row">
+      <label>Runden pro Team</label>
+      <div class="seg" id="seg-rounds">
+        <button data-v="2">2</button>
+        <button data-v="3" class="sel">3</button>
+        <button data-v="4">4</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Zeit pro Bild</label>
+      <div class="seg" id="seg-time">
+        <button data-v="60" class="sel">60 s</button>
+        <button data-v="90">90 s</button>
+        <button data-v="120">120 s</button>
+      </div>
+    </div>
+
+    <button class="big-btn" id="btn-start">🖌️ Los geht's!</button>
+    <p id="start-error"></p>
+    <button class="ghost-btn" id="btn-editor">📝 Eigene Begriffssets verwalten</button>
+    <button class="ghost-btn" id="btn-join">📱 Dieses Gerät ist das Zeichen-Tablet</button>
+    <p class="hint">Die Sets sind dieselben wie beim Fachwort-Fußball – gezeichnet werden die <b>Antworten</b>. Dazu gibt es eine eingebaute Wörterliste.</p>
+  </div>
+</div>
+
+<!-- ============ HOST: SPIEL ============ -->
+<div class="screen" id="screen-game">
+  <div class="topbar">
+    <div class="tb-team left">
+      <div class="tb-name" id="tb-nameA">Team Blau</div>
+      <div class="tb-score digits" id="tb-scoreA">0</div>
+    </div>
+    <div class="tb-mid">
+      <div class="round-pill" id="round-pill">Runde 1</div>
+      <div class="tb-timer digits" id="tb-timer"></div>
+    </div>
+    <div class="tb-team right">
+      <div class="tb-name" id="tb-nameB">Team Rot</div>
+      <div class="tb-score digits" id="tb-scoreB">0</div>
+    </div>
+  </div>
+  <div class="timer-line"><div class="fill" id="timer-fill"></div></div>
+
+  <div class="board-area">
+    <div class="canvas-wrap">
+      <canvas id="host-canvas" width="1000" height="625"></canvas>
+      <div class="canvas-msg" id="canvas-msg">Warten …</div>
+    </div>
+    <div class="host-controls">
+      <button class="big-btn" id="btn-round-start" style="display:none">▶ Runde starten</button>
+      <button class="btn-guessed" id="btn-guessed" style="display:none">✔ Erraten! (+1)</button>
+      <button class="btn-giveup" id="btn-giveup" style="display:none">⏭ Auflösen ohne Punkt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TABLET: BEITRETEN ============ -->
+<div class="screen" id="screen-join">
+  <div class="editor-card">
+    <h2>📱 Mitspielen</h2>
+    <p class="hint">Gebt den 4-Buchstaben-Code ein, der an der Tafel angezeigt wird, und wählt euer Team.</p>
+    <input type="text" id="join-code" maxlength="4" autocomplete="off" placeholder="CODE" style="font-family:'Bungee';font-size:2.2rem;text-align:center;letter-spacing:.3em;text-transform:uppercase;">
+    <div class="seg" id="seg-team">
+      <button data-v="0" class="sel">🔵 Team Blau</button>
+      <button data-v="1">🔴 Team Rot</button>
+    </div>
+    <button class="big-btn" id="btn-join-go">Beitreten</button>
+    <button class="ghost-btn" id="btn-join-back">‹ Zurück</button>
+  </div>
+</div>
+
+<!-- ============ TABLET: ZEICHNER/RATER ============ -->
+<div class="screen" id="screen-pad">
+  <div class="pad-head" id="pad-head">Team</div>
+  <div class="pad-status" id="pad-status">Warten …</div>
+  <div class="term-banner" id="term-banner">
+    <div class="term" id="pad-term"></div>
+    <button class="skip" id="btn-skip-term">↻ Anderes Wort</button>
+  </div>
+  <div class="canvas-wrap" id="pad-canvas-wrap" style="display:none">
+    <canvas id="pad-canvas" width="1000" height="625"></canvas>
+  </div>
+  <div class="toolbar" id="toolbar">
+    <button class="tool color sel" data-c="#1a1a1a" style="background:#1a1a1a">​</button>
+    <button class="tool color" data-c="#e03131" style="background:#e03131">​</button>
+    <button class="tool color" data-c="#1971c2" style="background:#1971c2">​</button>
+    <button class="tool color" data-c="#2f9e44" style="background:#2f9e44">​</button>
+    <button class="tool" id="tool-thin" title="Dünner Stift">✏️</button>
+    <button class="tool sel" id="tool-thick" title="Dicker Stift">🖍️</button>
+    <button class="tool" id="tool-eraser" title="Radierer">🧽</button>
+    <button class="tool wide" id="tool-undo">↩ Rückgängig</button>
+    <button class="tool wide" id="tool-clear">🗑 Alles löschen</button>
+  </div>
+  <div class="pad-foot">
+    <span id="pad-score"></span>
+    <button class="ghost-btn" id="btn-pad-retry" style="display:none">↻ Neu verbinden</button>
+    <button class="ghost-btn" id="btn-pad-leave">Verlassen</button>
+  </div>
+</div>
+
+<!-- ============ EDITOR: SET-ÜBERSICHT ============ -->
+<div class="screen" id="screen-editor">
+  <div class="editor-card">
+    <h2>📝 Eigene Begriffssets</h2>
+    <p class="hint">Gemeinsame Bibliothek mit dem Fachwort-Fußball: Sets, die du hier anlegst, kannst du dort spielen – und umgekehrt. Beim Zeichnen zählt nur die <b>Antwort</b>.</p>
+    <button class="big-btn" id="btn-new-set" style="font-size:1.4rem;min-height:3.8rem">➕ Neues Set anlegen</button>
+    <div class="item-list" id="set-list" style="max-height:40vh"></div>
+    <div class="row">
+      <button class="ghost-btn" id="btn-export" style="flex:1">⬇️ Sets sichern</button>
+      <button class="ghost-btn" id="btn-import" style="flex:1">⬆️ Sets laden</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+    </div>
+    <button class="ghost-btn" id="btn-editor-back">‹ Zurück zum Start</button>
+  </div>
+</div>
+
+<!-- ============ EDITOR: SET BEARBEITEN ============ -->
+<div class="screen" id="screen-set">
+  <div class="editor-card">
+    <div class="row" style="flex-wrap:nowrap">
+      <button class="ghost-btn" id="btn-set-back" style="flex:none">‹ Sets</button>
+      <input type="text" id="set-name-input" maxlength="40">
+      <button class="del-btn" id="btn-del-set" title="Set löschen">🗑</button>
+    </div>
+    <div class="method-btns">
+      <button class="ghost-btn" id="btn-open-paste">📋 Liste einfügen</button>
+      <button class="ghost-btn" id="btn-open-single">➕ Einzelner Begriff</button>
+    </div>
+    <div id="paste-panel" style="display:none;flex-direction:column;gap:.6rem">
+      <textarea id="paste-area" placeholder="Eine Zeile pro Eintrag – Frage und Antwort getrennt durch Tabulator, Semikolon oder „ - “, z.B.:&#10;Was heißt „the ruler“?; das Lineal&#10;Nur ein Wort pro Zeile geht auch – dann ist es Frage und Antwort zugleich."></textarea>
+      <div class="hint" id="paste-preview">Pro Zeile: Frage [Tab / ; / „ - “] Antwort – oder nur ein Begriff</div>
+      <button class="big-btn" id="btn-paste-apply" style="font-size:1.3rem;min-height:3.6rem">Übernehmen</button>
+    </div>
+    <div id="single-panel" style="display:none;flex-direction:column;gap:.6rem">
+      <input type="text" id="new-q" placeholder="Frage (optional – sonst leer lassen)">
+      <div class="row" style="flex-wrap:nowrap">
+        <input type="text" id="new-a" placeholder="Begriff / richtige Antwort">
+        <button class="ghost-btn" id="btn-add-item" style="flex:none">➕</button>
+      </div>
+    </div>
+    <div class="list-head">
+      <h3>Begriffe im Set</h3>
+      <span class="count-badge" id="set-count"></span>
+    </div>
+    <div class="item-list" id="item-list"></div>
+    <button class="big-btn" id="btn-set-done">✅ Fertig – zurück zum Spiel</button>
+  </div>
+</div>
+
+<!-- ============ OVERLAYS ============ -->
+<div class="overlay" id="overlay-lobby">
+  <h2 class="display" style="font-size:clamp(1.8rem,6vw,3.5rem)">📱 Tablets verbinden</h2>
+  <div class="who">Mit der Tablet-Kamera den passenden Code scannen:</div>
+  <div class="qr-row">
+    <div class="qr-box"><div class="qr-label" style="color:var(--teamA)">🔵 Team Blau</div><div id="qr-0"></div></div>
+    <div class="qr-box"><div class="qr-label" style="color:var(--teamB)">🔴 Team Rot</div><div id="qr-1"></div></div>
+  </div>
+  <div class="who" style="font-size:1.05rem;opacity:.85">… oder von Hand: Spiel öffnen → „Zeichen-Tablet“ → Code <span class="room-code-inline" id="room-code">····</span></div>
+  <div class="who" id="lobby-status">🔵 … &nbsp;&nbsp; 🔴 …</div>
+  <button class="big-btn" id="btn-lobby-start">▶ Spiel starten</button>
+  <button class="ghost-btn" id="btn-lobby-cancel">Abbrechen</button>
+</div>
+
+<div class="overlay" id="overlay-reveal">
+  <div class="who" id="reveal-head">Das war:</div>
+  <div class="reveal-term" id="reveal-term">…</div>
+  <div class="who" id="reveal-result"></div>
+</div>
+
+<div class="overlay" id="overlay-win">
+  <h2 class="display" id="win-title">🏆 SIEG!</h2>
+  <div class="who" id="win-who"></div>
+  <button class="big-btn" id="btn-rematch">🔁 Revanche</button>
+  <button class="ghost-btn" id="btn-win-home">Zum Startbildschirm</button>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+/* =================== DATEN =================== */
+const BUILTIN_WORDS=[
+'Elefant','Giraffe','Pinguin','Schnecke','Schmetterling','Krokodil','Eule','Qualle','Igel','Biene',
+'Lineal','Tafel','Rucksack','Bleistift','Zirkel','Pausenbrot','Turnhalle','Radiergummi',
+'Regenschirm','Zahnbürste','Kopfhörer','Fahrrad','Leiter','Schlüssel','Brille','Kerze','Koffer','Wecker',
+'Brezel','Spaghetti','Erdbeere','Eiswaffel','Pizza','Banane','Zuckerwatte','Spiegelei',
+'Fußballtor','Trampolin','Skateboard','Angel','Zelt','Schlitten','Schwimmbad','Hängematte',
+'Regenbogen','Vulkan','Wasserfall','Leuchtturm','Palme','Schneemann','Blitz','Kaktus',
+'Ritterburg','Pirat','Meerjungfrau','Roboter','Gespenst','Drache','Rakete','Einhorn','Zauberstab',
+'Feuerwehrmann','Astronaut','Clown','Koch','Gitarre','Trommel','Klavier'
+];
+
+/* =================== HILFEN =================== */
+const $ = id => document.getElementById(id);
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const rnd = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+function fmtN(n){ return n+(n===1?' Eintrag':' Einträge'); }
+
+/* =================== GETEILTE SET-BIBLIOTHEK =================== */
+const LS_KEY = 'fwf_custom_sets_v1';   /* identisch zum Fachwort-Fußball */
+function loadCustom(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)) || []; }catch(e){ return []; } }
+function saveCustom(sets){ localStorage.setItem(LS_KEY, JSON.stringify(sets)); }
+let customSets = loadCustom();
+
+function fillSetSelect(){
+  const sel=$('set-select'); sel.innerHTML='';
+  const o=document.createElement('option'); o.value='mm'; o.textContent='🎨 Montagsmaler-Wörter (eingebaut)';
+  sel.appendChild(o);
+  customSets.forEach((s,i)=>{ const c=document.createElement('option'); c.value='c:'+i; c.textContent='⭐ '+s.name+' ('+s.items.length+')'; sel.appendChild(c); });
+}
+function getTerms(){
+  const v=$('set-select').value;
+  if(v==='mm') return BUILTIN_WORDS.slice();
+  const s=customSets[+v.slice(2)];
+  return s ? s.items.map(it=>it.a) : [];
+}
+
+/* =================== SOUND =================== */
+let soundOn=true, actx=null;
+function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function tone(freq,dur,type='sine',vol=.25,when=0){
+  if(!soundOn) return;
+  const c=ac(),o=c.createOscillator(),g=c.createGain();
+  o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,c.currentTime+when);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+when+dur);
+  o.connect(g);g.connect(c.destination);
+  o.start(c.currentTime+when);o.stop(c.currentTime+when+dur+.05);
+}
+function sWhistle(){ tone(2200,.18,'square',.15); tone(2200,.3,'square',.15,.25); }
+function sYay(){ [523,659,784,1047].forEach((f,i)=>tone(f,.22,'triangle',.3,i*.11)); }
+function sNah(){ tone(220,.3,'sawtooth',.22); tone(165,.4,'sawtooth',.22,.25); }
+function sTick(){ tone(1500,.05,'square',.12); }
+
+/* =================== KONFETTI =================== */
+const cvs=$('confetti'), cctx=cvs.getContext('2d');
+let particles=[],confettiRunning=false;
+function burstConfetti(n=140){
+  cvs.width=innerWidth;cvs.height=innerHeight;
+  const cols=['#ffd43b','#339af0','#ff6b6b','#51cf66','#e599f7','#fff'];
+  for(let i=0;i<n;i++)particles.push({
+    x:innerWidth/2+rnd(-80,80),y:innerHeight*0.35,
+    vx:(Math.random()-.5)*14,vy:Math.random()*-11-4,
+    s:rnd(6,12),c:cols[rnd(0,cols.length-1)],r:Math.random()*Math.PI,vr:(Math.random()-.5)*.3
+  });
+  if(!confettiRunning){confettiRunning=true;requestAnimationFrame(confettiTick);}
+}
+function confettiTick(){
+  cctx.clearRect(0,0,cvs.width,cvs.height);
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.35;p.r+=p.vr;
+    cctx.save();cctx.translate(p.x,p.y);cctx.rotate(p.r);
+    cctx.fillStyle=p.c;cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);cctx.restore();});
+  particles=particles.filter(p=>p.y<cvs.height+30);
+  if(particles.length){requestAnimationFrame(confettiTick);}else{confettiRunning=false;cctx.clearRect(0,0,cvs.width,cvs.height);}
+}
+
+/* =================== ZEICHNEN (gemeinsam) =================== */
+const PAPER='#fdfcf7';
+function drawStroke(ctx,s){
+  if(!s||!s.p||s.p.length<2) return;
+  ctx.strokeStyle=s.c; ctx.lineWidth=s.w;
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(s.p[0],s.p[1]);
+  if(s.p.length===2) ctx.lineTo(s.p[0]+0.1,s.p[1]+0.1);
+  for(let i=2;i<s.p.length;i+=2) ctx.lineTo(s.p[i],s.p[i+1]);
+  ctx.stroke();
+}
+function clearCanvas(ctx){ ctx.fillStyle=PAPER; ctx.fillRect(0,0,1000,625); }
+function redrawAll(ctx,cache,order){
+  clearCanvas(ctx);
+  order.forEach(k=>drawStroke(ctx,cache[k]));
+}
+
+/* =================== SCREENS =================== */
+function show(id){
+  if(PAD_ONLY && id!=='screen-pad') return;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+  $('btn-home').style.display = id==='screen-start' ? 'none' : 'flex';
+}
+function segValue(id){ return $(id).querySelector('.sel').dataset.v; }
+document.querySelectorAll('.seg').forEach(seg=>{
+  seg.addEventListener('pointerdown',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+  });
+});
+$('btn-sound').addEventListener('pointerdown',()=>{ soundOn=!soundOn; $('btn-sound').textContent=soundOn?'🔊':'🔇'; });
+$('btn-fullscreen').addEventListener('pointerdown',()=>{
+  if(document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(()=>{});
+});
+$('btn-home').addEventListener('pointerdown',()=>{
+  if($('screen-pad').classList.contains('active')){ padLeave(); return; }
+  if($('screen-game').classList.contains('active') && !confirm('Spiel wirklich beenden?')) return;
+  stopHostTimer(); hostCleanup(); show('screen-start');
+});
+
+/* =================== FIREBASE-BASIS =================== */
+window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
+let db=null, roomRef=null, roomCode='';
+let PAD_ONLY=false, lastJoin=null, wakeLock=null;
+function fbInit(){
+  if(typeof firebase==='undefined' || !window.FIREBASE_CONFIG.databaseURL) return false;
+  if(!db){
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    db=firebase.database();
+  }
+  return true;
+}
+function fbErrText(err){
+  const t=(err&&(err.code||err.message))||String(err);
+  if(/permission|denied/i.test(t)) return 'Zugriff verweigert (permission_denied) – die Firebase-Regeln blockieren den Pfad „fwf“.';
+  if(/network|unavailable|timeout/i.test(t)) return 'Netzwerkproblem – ist das Gerät im WLAN?';
+  return t;
+}
+function makeCode(){
+  const L='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c='';
+  for(let i=0;i<4;i++) c+=L[rnd(0,L.length-1)];
+  return c;
+}
+function fbPub(obj){ if(roomRef && isHost) roomRef.update(obj); }
+function reqWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(w=>{wakeLock=w;}).catch(()=>{});
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && (padRef||roomRef)) reqWakeLock();
+});
+
+/* =================== HOST =================== */
+let isHost=false;
+const state={
+  teams:[{name:'Team Blau',score:0},{name:'Team Rot',score:0}],
+  roundNum:1, roundsTotal:6, startTeam:0, drawTeam:0,
+  dur:60, terms:[], termIdx:0, secret:'',
+  phase:'lobby', tEnd:0, timerId:null,
+};
+const hctx=$('host-canvas').getContext('2d');
+let hostCache={}, hostOrder=[];
+
+function startError(msg){
+  const e=$('start-error');
+  e.textContent='⚠️ '+msg;
+  e.style.display='block';
+}
+function nextTerm(){
+  if(state.termIdx>=state.terms.length){ shuffle(state.terms); state.termIdx=0; }
+  return state.terms[state.termIdx++];
+}
+$('btn-start').addEventListener('pointerdown',()=>{
+  const terms=getTerms();
+  if(!terms.length){ alert('Das gewählte Set hat noch keine Begriffe.'); return; }
+  if(!fbInit()){
+    startError('Zum Spielen wird die Firebase-Verbindung gebraucht (config.js von Klassenquest im selben Ordner). Direkt von der Festplatte geöffnet fehlt sie – bitte über die Klassenquest-Adresse (GitHub Pages) testen. Ohne Tablets kann Montagsmaler nicht laufen, denn gezeichnet wird ja auf dem Tablet.');
+    return;
+  }
+  $('start-error').style.display='none';
+  state.teams=[{name:$('nameA').value.trim()||'Team Blau',score:0},
+               {name:$('nameB').value.trim()||'Team Rot',score:0}];
+  state.roundsTotal=(+segValue('seg-rounds'))*2;
+  state.dur=+segValue('seg-time');
+  state.terms=shuffle(terms); state.termIdx=0;
+  state.roundNum=1; state.startTeam=rnd(0,1);
+  isHost=true;
+  roomCode=makeCode();
+  roomRef=db.ref('fwf/'+roomCode);
+  roomRef.set({game:'mm', created:Date.now(), phase:'lobby',
+    names:{0:state.teams[0].name,1:state.teams[1].name}, score:[0,0]})
+    .catch(err=>{
+      alert('Der Spielraum konnte nicht angelegt werden:\n'+fbErrText(err));
+      $('overlay-lobby').classList.remove('active'); hostCleanup();
+    });
+  roomRef.onDisconnect().remove();
+  hostListen();
+  $('room-code').textContent=roomCode;
+  makeQRs();
+  $('lobby-status').innerHTML='🔵 '+esc(state.teams[0].name)+' … &nbsp;&nbsp; 🔴 '+esc(state.teams[1].name)+' …';
+  $('overlay-lobby').classList.add('active');
+});
+function makeQRs(){
+  [0,1].forEach(t=>{
+    const el=$('qr-'+t); el.innerHTML='';
+    const url=location.origin+location.pathname+'?join='+roomCode+'&team='+t;
+    if(typeof QRCode!=='undefined'){
+      new QRCode(el,{text:url,width:180,height:180,
+        colorDark:t===0?'#1b4b91':'#a12222',colorLight:'#ffffff',
+        correctLevel:QRCode.CorrectLevel.M});
+    } else el.textContent='QR nicht verfügbar – Code nutzen';
+  });
+}
+function hostListen(){
+  roomRef.child('pads').on('value',s=>{
+    const p=s.val()||{};
+    $('lobby-status').innerHTML=
+      '🔵 '+esc(state.teams[0].name)+(p[0]?' ✔':' …')+' &nbsp;&nbsp; '+
+      '🔴 '+esc(state.teams[1].name)+(p[1]?' ✔':' …');
+  });
+  roomRef.child('strokes').on('child_added',s=>{
+    if(!(s.key in hostCache)) hostOrder.push(s.key);
+    hostCache[s.key]=s.val();
+    redrawAll(hctx,hostCache,hostOrder);
+  });
+  roomRef.child('strokes').on('child_changed',s=>{
+    hostCache[s.key]=s.val();
+    redrawAll(hctx,hostCache,hostOrder);
+  });
+  roomRef.child('strokes').on('child_removed',s=>{
+    delete hostCache[s.key];
+    hostOrder=hostOrder.filter(k=>k!==s.key);
+    redrawAll(hctx,hostCache,hostOrder);
+  });
+  roomRef.child('skipReq').on('value',s=>{
+    if(!s.val() || state.phase!=='draw') return;
+    state.secret=nextTerm();
+    fbPub({secret:state.secret});
+  });
+}
+$('btn-lobby-start').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  startMatch();
+});
+$('btn-lobby-cancel').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  hostCleanup();
+});
+function startMatch(){
+  $('tb-nameA').textContent=state.teams[0].name;
+  $('tb-nameB').textContent=state.teams[1].name;
+  $('tb-scoreA').textContent='0'; $('tb-scoreB').textContent='0';
+  show('screen-game');
+  reqWakeLock();
+  prepRound();
+}
+function prepRound(){
+  state.phase='prep';
+  state.drawTeam=(state.startTeam+state.roundNum-1)%2;
+  hostCache={}; hostOrder=[]; clearCanvas(hctx);
+  roomRef.child('strokes').remove();
+  const tn=state.teams[state.drawTeam].name;
+  $('round-pill').textContent='Runde '+state.roundNum+' / '+state.roundsTotal;
+  $('round-pill').style.background = state.drawTeam===0?'var(--teamA)':'var(--teamB)';
+  $('canvas-msg').style.display='flex';
+  $('canvas-msg').textContent='🎨 '+tn+' zeichnet – Tablet an den Zeichner geben!';
+  $('tb-timer').textContent='';
+  $('timer-fill').style.width='100%';
+  $('btn-round-start').style.display='inline-flex';
+  $('btn-round-start').textContent='▶ '+tn+' zeichnet – Start!';
+  $('btn-guessed').style.display='none';
+  $('btn-giveup').style.display='none';
+  fbPub({phase:'prep', round:{num:state.roundNum,total:state.roundsTotal,team:state.drawTeam},
+    secret:null, reveal:null, skipReq:null});
+}
+$('btn-round-start').addEventListener('pointerdown',()=>{
+  if(state.phase!=='prep') return;
+  state.phase='draw';
+  state.secret=nextTerm();
+  state.tEnd=Date.now()+state.dur*1000;
+  $('canvas-msg').style.display='none';
+  $('btn-round-start').style.display='none';
+  $('btn-guessed').style.display='inline-flex';
+  $('btn-giveup').style.display='inline-flex';
+  fbPub({phase:'draw', secret:state.secret,
+    round:{num:state.roundNum,total:state.roundsTotal,team:state.drawTeam,tEnd:state.tEnd,dur:state.dur}});
+  sWhistle();
+  startHostTimer();
+});
+function startHostTimer(){
+  stopHostTimer();
+  let lastTick=-1;
+  state.timerId=setInterval(()=>{
+    const left=Math.max(0,state.tEnd-Date.now());
+    const sec=Math.ceil(left/1000);
+    $('tb-timer').textContent='⏱ '+sec+' s';
+    $('timer-fill').style.width=(left/(state.dur*1000)*100)+'%';
+    $('timer-fill').style.background = sec<=10 ? '#ff6b6b' : 'var(--led)';
+    if(sec<=10 && sec>0 && sec!==lastTick){ lastTick=sec; sTick(); }
+    if(left<=0){ stopHostTimer(); endRound(false); }
+  },200);
+}
+function stopHostTimer(){ if(state.timerId){clearInterval(state.timerId);state.timerId=null;} }
+$('btn-guessed').addEventListener('pointerdown',()=>{ if(state.phase==='draw') endRound(true); });
+$('btn-giveup').addEventListener('pointerdown',()=>{ if(state.phase==='draw') endRound(false); });
+function endRound(got){
+  stopHostTimer();
+  state.phase='reveal';
+  if(got){ state.teams[state.drawTeam].score++; sYay(); burstConfetti(); }
+  else sNah();
+  $('tb-scoreA').textContent=state.teams[0].score;
+  $('tb-scoreB').textContent=state.teams[1].score;
+  $('btn-guessed').style.display='none';
+  $('btn-giveup').style.display='none';
+  fbPub({phase:'reveal',
+    reveal:{term:state.secret, got, team:state.drawTeam},
+    score:[state.teams[0].score,state.teams[1].score]});
+  $('reveal-term').textContent=state.secret;
+  $('reveal-head').textContent = got ? '✔ Erraten! Das war:' : '⏱ Nicht erraten. Das war:';
+  $('reveal-result').textContent = got ? '+1 Punkt für '+state.teams[state.drawTeam].name : 'Kein Punkt';
+  $('overlay-reveal').classList.add('active');
+  setTimeout(()=>{
+    $('overlay-reveal').classList.remove('active');
+    state.roundNum++;
+    if(state.roundNum>state.roundsTotal) endMatch();
+    else prepRound();
+  },2800);
+}
+function endMatch(){
+  state.phase='end';
+  const a=state.teams[0].score, b=state.teams[1].score;
+  const winner = a===b ? -1 : (a>b?0:1);
+  fbPub({phase:'end', winner});
+  if(winner>=0){
+    $('win-title').textContent='🏆 SIEG!';
+    $('win-who').textContent=state.teams[winner].name+' gewinnt '+Math.max(a,b)+' : '+Math.min(a,b)+'!';
+    burstConfetti(220); burstConfetti(160);
+  } else {
+    $('win-title').textContent='🤝 Unentschieden!';
+    $('win-who').textContent=a+' : '+b+' – starke Leistung von beiden Teams!';
+  }
+  $('overlay-win').classList.add('active');
+}
+$('btn-rematch').addEventListener('pointerdown',()=>{
+  $('overlay-win').classList.remove('active');
+  state.teams.forEach(t=>t.score=0);
+  $('tb-scoreA').textContent='0'; $('tb-scoreB').textContent='0';
+  state.roundNum=1; state.startTeam=rnd(0,1);
+  fbPub({score:[0,0], winner:null});
+  prepRound();
+});
+$('btn-win-home').addEventListener('pointerdown',()=>{
+  $('overlay-win').classList.remove('active');
+  hostCleanup(); show('screen-start');
+});
+function hostCleanup(){
+  if(roomRef && isHost){
+    roomRef.child('pads').off(); roomRef.child('strokes').off(); roomRef.child('skipReq').off();
+    roomRef.remove(); roomRef=null;
+  }
+  isHost=false;
+  stopHostTimer();
+}
+
+/* =================== TABLET (Zeichner / Rater) =================== */
+let padRef=null, padTeam=0, padRoundN=-1, padSynced=false, padTimerId=null;
+let myKeys=[], padCache={}, padOrder=[];
+const pctx=$('pad-canvas').getContext('2d');
+let curStroke=null, curRef=null, lastSync=0;
+let toolColor='#1a1a1a', toolWidth=12, eraser=false;
+let padDrawEnabled=false, padTEnd=0;
+
+$('btn-join').addEventListener('pointerdown',()=>{
+  if(!fbInit()){
+    alert('Montagsmaler braucht die Firebase-Konfiguration.\nDie config.js von Klassenquest muss im selben Ordner liegen.');
+    return;
+  }
+  show('screen-join');
+});
+$('btn-join-back').addEventListener('pointerdown',()=>show('screen-start'));
+$('btn-join-go').addEventListener('pointerdown',()=>{
+  const code=$('join-code').value.trim().toUpperCase();
+  if(code.length!==4){ alert('Bitte den 4-Buchstaben-Code von der Tafel eingeben.'); return; }
+  joinRoom(code, +segValue('seg-team'));
+});
+function joinRoom(code, team){
+  padTeam=team; lastJoin={code,team};
+  const ref=db.ref('fwf/'+code);
+  ref.get().then(s=>{
+    if(!s.exists()){ padFail('Kein Spiel mit diesem Code gefunden. Läuft an der Tafel die Tablet-Lobby?'); return; }
+    padRef=ref; padRoundN=-1; myKeys=[]; padCache={}; padOrder=[];
+    padRef.child('pads/'+padTeam).set(true);
+    padRef.child('pads/'+padTeam).onDisconnect().remove();
+    padRef.on('value',s2=>renderPad(s2.val()));
+    $('btn-pad-retry').style.display='none';
+    show('screen-pad');
+    reqWakeLock();
+  }).catch(err=>padFail('Verbindung fehlgeschlagen: '+fbErrText(err)));
+}
+function padFail(msg){
+  if(!PAD_ONLY){ alert(msg); return; }
+  show('screen-pad');
+  $('pad-head').textContent='🎨 Montagsmaler';
+  $('pad-head').style.background='#22344f';
+  $('pad-status').textContent=msg;
+  $('term-banner').style.display='none';
+  $('pad-canvas-wrap').style.display='none';
+  $('toolbar').style.display='none';
+  $('btn-pad-retry').style.display='inline-flex';
+}
+$('btn-pad-retry').addEventListener('pointerdown',()=>{
+  $('btn-pad-retry').style.display='none';
+  $('pad-status').textContent='Verbinde …';
+  if(lastJoin) joinRoom(lastJoin.code, lastJoin.team);
+});
+function padLeave(){
+  if(padRef){ padRef.off(); padRef.child('pads/'+padTeam).remove(); padRef=null; }
+  stopPadTimer();
+  show('screen-start');
+}
+$('btn-pad-leave').addEventListener('pointerdown',padLeave);
+
+function stopPadTimer(){ if(padTimerId){clearInterval(padTimerId);padTimerId=null;} }
+function startPadTimer(){
+  stopPadTimer();
+  padTimerId=setInterval(()=>{
+    const sec=Math.max(0,Math.ceil((padTEnd-Date.now())/1000));
+    $('pad-status').textContent='🖌️ Zeichnen! Noch ⏱ '+sec+' s';
+    if(sec<=0) stopPadTimer();
+  },500);
+}
+
+function renderPad(v){
+  const stat=$('pad-status');
+  if(!v){
+    stat.textContent='Das Spiel an der Tafel wurde beendet. Für ein neues Spiel den neuen QR-Code scannen.';
+    $('term-banner').style.display='none';
+    $('pad-canvas-wrap').style.display='none';
+    $('toolbar').style.display='none';
+    padDrawEnabled=false; stopPadTimer();
+    return;
+  }
+  const head=$('pad-head');
+  head.textContent=(padTeam===0?'🔵 ':'🔴 ')+((v.names&&v.names[padTeam])||'Team');
+  head.style.background = padTeam===0 ? 'var(--teamA)' : 'var(--teamB)';
+  $('pad-score').textContent = v.score ? '🎨 '+v.score[0]+' : '+v.score[1] : '';
+
+  const r=v.round||{};
+  if(r.num && r.num!==padRoundN){
+    padRoundN=r.num; myKeys=[]; padCache={}; padOrder=[]; padSynced=false;
+    clearCanvas(pctx);
+  }
+  const myTurn = r.team===padTeam;
+  const phase=v.phase;
+
+  const showDraw = phase==='draw' && myTurn;
+  $('pad-canvas-wrap').style.display = showDraw ? 'block' : 'none';
+  $('toolbar').style.display = showDraw ? 'flex' : 'none';
+  $('term-banner').style.display = showDraw ? 'flex' : 'none';
+  padDrawEnabled = showDraw;
+  if(!showDraw) stopPadTimer();
+
+  if(phase==='lobby'){
+    stat.textContent='Verbunden ✔ – warten auf den Start …';
+    return;
+  }
+  if(phase==='prep'){
+    stat.textContent = myTurn
+      ? '🎨 Gleich seid ihr dran – Tablet an den Zeichner geben!'
+      : '👀 '+((v.names&&v.names[r.team])||'Das andere Team')+' zeichnet gleich – ihr ratet!';
+    return;
+  }
+  if(phase==='draw'){
+    if(myTurn){
+      $('pad-term').textContent=v.secret||'…';
+      padTEnd=r.tEnd||0;
+      if(!padTimerId) startPadTimer();
+      if(!padSynced){
+        padSynced=true;
+        padRef.child('strokes').get().then(s=>{
+          const all=s.val()||{};
+          padOrder=Object.keys(all); padCache=all;
+          redrawAll(pctx,padCache,padOrder);
+        }).catch(()=>{});
+      }
+    } else {
+      stat.textContent='👀 '+((v.names&&v.names[r.team])||'Das andere Team')+' zeichnet – schaut auf den großen Bildschirm und ruft!';
+    }
+    return;
+  }
+  if(phase==='reveal' && v.reveal){
+    const rv=v.reveal;
+    stat.textContent = (rv.got ? '✔ Erraten! ' : '✗ Nicht erraten. ')+'Es war: „'+rv.term+'“'
+      +(rv.got ? ' – +1 für '+((v.names&&v.names[rv.team])||'') : '');
+    return;
+  }
+  if(phase==='end'){
+    stat.textContent = v.winner===-1 ? '🤝 Unentschieden!'
+      : (v.winner===padTeam ? '🏆 Ihr habt gewonnen!' : '🏆 '+((v.names&&v.names[v.winner])||'Das andere Team')+' gewinnt.');
+    return;
+  }
+}
+
+/* --- Zeichnen-Eingabe --- */
+const padCanvas=$('pad-canvas');
+function canvasPos(e){
+  const rect=padCanvas.getBoundingClientRect();
+  const x=Math.max(0,Math.min(1000,Math.round((e.clientX-rect.left)/rect.width*1000)));
+  const y=Math.max(0,Math.min(625,Math.round((e.clientY-rect.top)/rect.height*625)));
+  return [x,y];
+}
+padCanvas.addEventListener('pointerdown',e=>{
+  if(!padDrawEnabled||!padRef) return;
+  e.preventDefault();
+  padCanvas.setPointerCapture(e.pointerId);
+  const [x,y]=canvasPos(e);
+  curStroke={c:eraser?PAPER:toolColor, w:eraser?44:toolWidth, p:[x,y]};
+  curRef=padRef.child('strokes').push();
+  lastSync=0;
+});
+padCanvas.addEventListener('pointermove',e=>{
+  if(!curStroke) return;
+  e.preventDefault();
+  const [x,y]=canvasPos(e);
+  const p=curStroke.p, n=p.length;
+  if(Math.abs(x-p[n-2])+Math.abs(y-p[n-1])<4) return;
+  pctx.strokeStyle=curStroke.c; pctx.lineWidth=curStroke.w;
+  pctx.lineJoin='round'; pctx.lineCap='round';
+  pctx.beginPath(); pctx.moveTo(p[n-2],p[n-1]); pctx.lineTo(x,y); pctx.stroke();
+  p.push(x,y);
+  const now=Date.now();
+  if(now-lastSync>120){ lastSync=now; curRef.set(curStroke); }
+});
+function finishStroke(){
+  if(!curStroke) return;
+  curRef.set(curStroke);
+  padCache[curRef.key]=curStroke; padOrder.push(curRef.key);
+  myKeys.push(curRef.key);
+  curStroke=null; curRef=null;
+}
+padCanvas.addEventListener('pointerup',finishStroke);
+padCanvas.addEventListener('pointercancel',finishStroke);
+
+document.querySelectorAll('.tool.color').forEach(b=>{
+  b.addEventListener('pointerdown',()=>{
+    eraser=false; toolColor=b.dataset.c;
+    document.querySelectorAll('.tool.color,#tool-eraser').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+  });
+});
+$('tool-thin').addEventListener('pointerdown',()=>{
+  toolWidth=5; $('tool-thin').classList.add('sel'); $('tool-thick').classList.remove('sel');
+});
+$('tool-thick').addEventListener('pointerdown',()=>{
+  toolWidth=12; $('tool-thick').classList.add('sel'); $('tool-thin').classList.remove('sel');
+});
+$('tool-eraser').addEventListener('pointerdown',()=>{
+  eraser=true;
+  document.querySelectorAll('.tool.color').forEach(x=>x.classList.remove('sel'));
+  $('tool-eraser').classList.add('sel');
+});
+$('tool-undo').addEventListener('pointerdown',()=>{
+  if(!padRef||!myKeys.length) return;
+  const k=myKeys.pop();
+  padRef.child('strokes/'+k).remove();
+  delete padCache[k]; padOrder=padOrder.filter(x=>x!==k);
+  redrawAll(pctx,padCache,padOrder);
+});
+$('tool-clear').addEventListener('pointerdown',()=>{
+  if(!padRef) return;
+  padRef.child('strokes').remove();
+  myKeys=[]; padCache={}; padOrder=[];
+  clearCanvas(pctx);
+});
+$('btn-skip-term').addEventListener('pointerdown',()=>{
+  if(padRef) padRef.child('skipReq').set(Date.now());
+});
+
+/* =================== EDITOR (gemeinsame Bibliothek) =================== */
+let editIdx=-1;
+function renderSetList(){
+  const list=$('set-list'); list.innerHTML='';
+  if(!customSets.length){
+    list.innerHTML='<p class="hint">Noch keine eigenen Sets. Lege mit „➕ Neues Set anlegen“ dein erstes an.</p>';
+    return;
+  }
+  customSets.forEach((s,i)=>{
+    const row=document.createElement('button');
+    row.className='set-row';
+    row.innerHTML='<span class="set-row-name">'+esc(s.name)+'</span>'
+      +'<span class="set-row-meta">'+fmtN(s.items.length)+'  ›</span>';
+    row.addEventListener('pointerdown',()=>openSet(i));
+    list.appendChild(row);
+  });
+}
+$('btn-editor').addEventListener('pointerdown',()=>{ customSets=loadCustom(); renderSetList(); show('screen-editor'); });
+$('btn-editor-back').addEventListener('pointerdown',()=>{ fillSetSelect(); show('screen-start'); });
+$('btn-new-set').addEventListener('pointerdown',()=>{
+  const name=prompt('Name des neuen Sets (z.B. „Herbst-Wörter“):');
+  if(!name) return;
+  customSets.push({name:name.trim(),items:[]});
+  saveCustom(customSets);
+  openSet(customSets.length-1);
+  togglePanel('paste-panel','btn-open-paste');
+});
+function openSet(i){
+  editIdx=i;
+  $('set-name-input').value=customSets[i].name;
+  hidePanels(); renderItems();
+  show('screen-set');
+}
+function hidePanels(){
+  $('paste-panel').style.display='none';
+  $('single-panel').style.display='none';
+  $('btn-open-paste').classList.remove('sel');
+  $('btn-open-single').classList.remove('sel');
+}
+function togglePanel(panelId,btnId){
+  const wasOpen=$(panelId).style.display!=='none';
+  hidePanels();
+  if(!wasOpen){ $(panelId).style.display='flex'; $(btnId).classList.add('sel'); }
+}
+function renderItems(){
+  const s=customSets[editIdx];
+  $('set-count').textContent=fmtN(s.items.length);
+  const list=$('item-list'); list.innerHTML='';
+  if(!s.items.length){ list.innerHTML='<p class="hint">Noch keine Begriffe – füge oben welche hinzu.</p>'; return; }
+  s.items.forEach((it,i)=>{
+    const row=document.createElement('div'); row.className='item-row';
+    const qa=document.createElement('div'); qa.className='qa';
+    qa.innerHTML='<b>'+esc(it.a)+'</b>'+(it.q&&it.q!==it.a?'<br>'+esc(it.q):'');
+    const del=document.createElement('button'); del.className='del-btn'; del.textContent='🗑';
+    del.addEventListener('pointerdown',()=>{ s.items.splice(i,1); saveCustom(customSets); renderItems(); });
+    row.appendChild(qa); row.appendChild(del); list.appendChild(row);
+  });
+}
+$('btn-set-back').addEventListener('pointerdown',()=>{ renderSetList(); show('screen-editor'); });
+$('btn-set-done').addEventListener('pointerdown',()=>{
+  fillSetSelect();
+  $('set-select').value='c:'+editIdx;
+  show('screen-start');
+});
+$('set-name-input').addEventListener('change',()=>{
+  const v=$('set-name-input').value.trim();
+  if(v){ customSets[editIdx].name=v; saveCustom(customSets); }
+  else $('set-name-input').value=customSets[editIdx].name;
+});
+$('btn-del-set').addEventListener('pointerdown',()=>{
+  if(!confirm('Set „'+customSets[editIdx].name+'“ wirklich löschen?')) return;
+  customSets.splice(editIdx,1); editIdx=-1; saveCustom(customSets);
+  renderSetList(); show('screen-editor');
+});
+$('btn-open-paste').addEventListener('pointerdown',()=>togglePanel('paste-panel','btn-open-paste'));
+$('btn-open-single').addEventListener('pointerdown',()=>togglePanel('single-panel','btn-open-single'));
+$('btn-add-item').addEventListener('pointerdown',()=>{
+  const q=$('new-q').value.trim(), a=$('new-a').value.trim();
+  if(!a){ alert('Bitte mindestens den Begriff ausfüllen.'); return; }
+  customSets[editIdx].items.push({q:q||a, a});
+  saveCustom(customSets);
+  $('new-q').value=''; $('new-a').value=''; $('new-a').focus();
+  renderItems();
+});
+const PASTE_HINT='Pro Zeile: Frage [Tab / ; / „ - “] Antwort – oder nur ein Begriff';
+function parsePaste(text){
+  const items=[];
+  text.split(/\r?\n/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    let sep=null;
+    if(line.includes('\t')) sep='\t';
+    else if(line.includes(';')) sep=';';
+    else if(line.includes(' - ')) sep=' - ';
+    else if(line.includes('=')) sep='=';
+    if(!sep){ items.push({q:line,a:line}); return; }
+    const i=line.indexOf(sep);
+    const q=line.slice(0,i).trim(), a=line.slice(i+sep.length).trim();
+    if(q&&a) items.push({q,a});
+    else if(a) items.push({q:a,a});
+    else if(q) items.push({q,a:q});
+  });
+  return items;
+}
+$('paste-area').addEventListener('input',()=>{
+  const n=parsePaste($('paste-area').value).length;
+  $('paste-preview').textContent = n ? '✔ '+fmtN(n)+' erkannt' : PASTE_HINT;
+  $('btn-paste-apply').textContent = n ? '➕ '+fmtN(n)+' übernehmen' : 'Übernehmen';
+});
+$('btn-paste-apply').addEventListener('pointerdown',()=>{
+  const items=parsePaste($('paste-area').value);
+  if(!items.length){ alert('Keine Einträge erkannt.'); return; }
+  customSets[editIdx].items.push(...items); saveCustom(customSets);
+  $('paste-area').value=''; $('paste-preview').textContent=PASTE_HINT;
+  $('btn-paste-apply').textContent='Übernehmen';
+  renderItems();
+});
+$('btn-export').addEventListener('pointerdown',()=>{
+  const blob=new Blob([JSON.stringify(customSets,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='begriffssets.json'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('btn-import').addEventListener('pointerdown',()=>$('import-file').click());
+$('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const data=JSON.parse(r.result);
+      if(!Array.isArray(data)) throw 0;
+      data.forEach(s=>{ if(s && s.name && Array.isArray(s.items)) customSets.push({name:String(s.name),items:s.items.filter(it=>it.a).map(it=>({q:String(it.q||it.a),a:String(it.a)}))}); });
+      saveCustom(customSets); renderSetList(); fillSetSelect();
+      alert('Import erfolgreich!');
+    }catch(err){ alert('Datei konnte nicht gelesen werden (kein gültiges JSON-Format).'); }
+  };
+  r.readAsText(f); e.target.value='';
+});
+
+/* =================== INIT =================== */
+fillSetSelect();
+clearCanvas(hctx);
+clearCanvas(pctx);
+addEventListener('resize',()=>{ if(confettiRunning){ cvs.width=innerWidth; cvs.height=innerHeight; }});
+/* QR-Autostart: ?join=CODE&team=0|1 */
+(function(){
+  const p=new URLSearchParams(location.search);
+  const code=(p.get('join')||'').trim().toUpperCase();
+  if(code.length===4){
+    PAD_ONLY=true;
+    document.body.classList.add('pad-only');
+    show('screen-pad');
+    $('pad-head').textContent='🎨 Montagsmaler';
+    $('pad-head').style.background='#22344f';
+    $('pad-status').textContent='Verbinde …';
+    if(fbInit()) joinRoom(code, p.get('team')==='1' ? 1 : 0);
+    else padFail('Firebase-Konfiguration fehlt (config.js im selben Ordner).');
+  }
+})();
+</script>
+</body>
+</html>
