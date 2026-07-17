@@ -12,6 +12,7 @@
 <title>Klassenquest</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 <script src="config.js"></script>
+<script src="monsters.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
@@ -875,6 +876,61 @@ body.admin .admin-only{display:block}
 .used-badge{font-size:.58rem;font-weight:800;background:var(--text-3);
   color:#fff;padding:2px 7px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
 
+
+/* MONSTER */
+.mon-spr{display:inline-block;line-height:0;position:relative}
+.mon-spr img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
+.mon-champion img{
+  filter:drop-shadow(0 0 5px rgba(245,200,66,.85)) drop-shadow(0 0 12px rgba(245,200,66,.45)) saturate(1.15);
+  animation:champGlow 2s ease-in-out infinite;
+}
+@keyframes champGlow{
+  0%,100%{filter:drop-shadow(0 0 4px rgba(245,200,66,.7)) drop-shadow(0 0 10px rgba(245,200,66,.35)) saturate(1.1)}
+  50%{filter:drop-shadow(0 0 8px rgba(245,200,66,1)) drop-shadow(0 0 18px rgba(245,200,66,.6)) saturate(1.25)}
+}
+.mon-crown{position:absolute;top:-9px;right:-4px;font-size:.85em;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));animation:crownBob 1.6s ease-in-out infinite}
+@keyframes crownBob{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@media (prefers-reduced-motion: reduce){.mon-champion img,.mon-crown{animation:none}}
+.stu-mon{
+  width:52px;height:52px;flex-shrink:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.05);border:1.5px solid var(--border-2);
+  border-radius:12px;transition:transform .12s;
+}
+.stu-mon:active{transform:scale(.92)}
+.mon-prog{height:6px;background:rgba(255,255,255,.08);border-radius:999px;
+  border:1px solid var(--border);overflow:hidden;margin-top:3px;max-width:120px}
+.mon-prog-fill{height:100%;background:linear-gradient(90deg,var(--gold),#fde68a);border-radius:999px;transition:width .5s}
+.mon-pick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.mon-pick{
+  background:rgba(255,255,255,.04);border:2px solid var(--border-2);border-radius:12px;
+  padding:8px 4px;cursor:pointer;text-align:center;transition:all .15s;
+}
+.mon-pick:hover{border-color:var(--gold)}
+.mon-pick.sel{border-color:var(--gold);background:rgba(245,200,66,.12);box-shadow:0 0 12px rgba(245,200,66,.25)}
+.mon-pick-name{font-size:.62rem;font-weight:800;color:var(--text-2);margin-top:3px}
+.evo-overlay{
+  position:fixed;inset:0;z-index:300;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at center,rgba(245,200,66,.14),rgba(8,5,24,.85));
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.evo-overlay.on{opacity:1;pointer-events:all}
+.evo-card{text-align:center;padding:30px 40px;transform:scale(.6);opacity:0;
+  transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.evo-overlay.on .evo-card{transform:scale(1);opacity:1}
+.evo-spr{display:inline-block;animation:evobob 1.2s ease-in-out infinite alternate;
+  filter:drop-shadow(0 0 24px rgba(245,200,66,.55))}
+@keyframes evobob{0%{transform:scale(1) rotate(-2deg)}100%{transform:scale(1.08) rotate(2deg)}}
+.evo-title{font-family:'Cinzel',serif;font-size:.95rem;font-weight:800;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--gold);text-shadow:0 0 22px rgba(245,200,66,.8);margin:12px 0 4px}
+.evo-name{font-family:'Cinzel',serif;font-size:1.7rem;font-weight:900;color:#fff;
+  text-shadow:0 0 26px rgba(245,200,66,.5);margin-bottom:8px}
+.evo-sub{font-size:.85rem;font-weight:700;color:var(--text-2)}
+@media (prefers-reduced-motion: reduce){.evo-spr{animation:none}}
+
 /* SCHEDULE GRID */
 .sch-grid{
   display:grid;
@@ -1215,6 +1271,15 @@ body.admin .admin-only{display:block}
       </div>
     </div>
 
+    <div class="sg">
+      <div class="sg-title">Credits</div>
+      <div style="font-size:.72rem;color:var(--text-3);line-height:1.5">
+        Monster-Sprites aus dem Open-Source-Projekt <b>Tuxemon</b> (tuxemon.org),
+        Lizenz CC BY-SA 3.0 – Dank an die Tuxemon-Künstler:innen.
+        Eier-Pixelart: eigene Erstellung.
+      </div>
+    </div>
+
     <!-- Sync – für ALLE (Info) -->
     <div class="sg">
       <div class="sg-title">Sync</div>
@@ -1283,6 +1348,23 @@ body.admin .admin-only{display:block}
 </div>
 
 <!-- SCHEDULE LESSON EDIT MODAL -->
+
+<!-- MONSTER PICKER MODAL -->
+<div class="modal-wrap" id="monster-modal">
+  <div class="modal" style="max-width:460px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">🥚 Monster wählen</div>
+    <div class="modal-sub" id="mp-sub">Such dir dein Begleiter-Monster aus!</div>
+    <div class="mon-pick-grid" id="mp-grid"></div>
+    <div style="font-size:.68rem;color:var(--text-3);font-weight:700;text-align:center;margin-bottom:10px">Entwicklung bei 5 · 15 · 30 · 50 ⭐</div>
+    <label class="lbl">Eigener Name (optional)</label>
+    <input class="inp mb10" id="mp-name" placeholder="z. B. Flitzi" maxlength="16">
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-ghost" onclick="closeMonsterPick()">Abbrechen</button>
+      <button class="btn btn-gold" onclick="saveMonsterPick()">✓ Wählen</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-wrap" id="sched-modal">
   <div class="modal" style="max-width:420px">
     <div class="modal-title" id="sl-title">📅 Stunde bearbeiten</div>
@@ -1912,6 +1994,38 @@ function tryAuto(){
 }
 
 /* NAV */
+
+
+/* ===== MONSTER-SYSTEM (individuelle positive Verstärkung) =====
+   Sprites in monsters.js — Tuxemon-Projekt (CC BY-SA 3.0), Eier generiert. */
+const MONSTER_IMGS=window.MONSTER_IMGS||{};
+const MONSTER_LINES=window.MONSTER_LINES||[];
+const STAGE_THRESHOLDS=[0,5,15,30,50];
+const STAGE_NAMES=['Ei','Schlüpfling','Entwickelt','Finale Form','Champion ✨'];
+
+function monsterStage(stars){
+  let st=0;
+  for(let i=0;i<STAGE_THRESHOLDS.length;i++){ if((stars||0)>=STAGE_THRESHOLDS[i]) st=i; }
+  return st;
+}
+function nextStageInfo(stars){
+  const st=monsterStage(stars);
+  if(st>=4) return null;
+  const need=STAGE_THRESHOLDS[st+1];
+  return {next:st+1, need, have:stars||0, prev:STAGE_THRESHOLDS[st]};
+}
+function monsterLine(id){return MONSTER_LINES.find(m=>m.id===id)}
+function monsterSVG(type, stage, size){
+  const arr=MONSTER_IMGS[type];
+  if(!arr) return '<span class="mon-spr" style="width:'+size+'px;height:'+size+'px;font-size:'+Math.round(size*0.7)+'px;line-height:'+size+'px;text-align:center">🥚</span>';
+  const imgIdx=Math.min(stage,3);
+  const champ=stage>=4?' mon-champion':'';
+  return '<span class="mon-spr'+champ+'" style="width:'+size+'px;height:'+size+'px">'+
+    '<img src="data:image/png;base64,'+arr[imgIdx]+'" alt="">'+
+    (stage>=4?'<span class="mon-crown">👑</span>':'')+
+  '</span>';
+}
+
 /* ===== BELOHNUNGSSPIELE ===== */
 const REWARD_GAMES=[
   {id:'runner3d',em:'🏃',name:'Bewegungs-Run 3D',
@@ -1919,10 +2033,7 @@ const REWARD_GAMES=[
    url:'https://erikah-cge.github.io/3dRunner/'},
   {id:'fussball',em:'⚽',name:'Fachwort-Fußball',
    desc:'Quiz-Duell am Touchboard: richtige Antwort = Ball nach vorn. Vokabeln, Kopfrechnen, Fachbegriffe oder eigene Fragesets.',
-   url:'fachwort-fussball.html'},
-  {id:'maler',em:'🎨',name:'Montagsmaler',
-   desc:'Ein Tablet zeichnet, der große Bildschirm zeigt es live, die Klasse rät. Teams im Wechsel, Begriffe aus den Fragesets oder der Wörterliste.',
-   url:'montagsmaler.html'}
+   url:'fachwort-fussball.html'}
 ];
 function ensureGames(){
   if(!S.games)S.games={};
@@ -3401,11 +3512,18 @@ function renderStudents(){
       return t?`<span style="display:inline-block;font-size:.62rem;font-weight:700;background:rgba(245,200,66,.16);color:var(--gold);border:1px solid rgba(245,200,66,.36);padding:1px 6px;border-radius:999px;margin-right:3px;margin-top:2px;line-height:1.4;white-space:nowrap">${esc(t.label)}</span>`:'';
     }).join('');
 
+    const stage=monsterStage(stars);
+    const nx=nextStageInfo(stars);
+    const prog=nx?Math.round(100*(nx.have-nx.prev)/(nx.need-nx.prev)):100;
+    const avatar=s.monster
+      ?`<div class="stu-mon" onclick="openMonsterPick('${s.id}')" title="${esc(monsterDisplayName(s))} · ${STAGE_NAMES[stage]}">${monsterSVG(s.monster,stage,46)}</div>`
+      :`<div class="stu-av" style="background:${c};border-color:${c}aa;cursor:pointer" onclick="openMonsterPick('${s.id}')" title="Monster wählen">${ini}</div>`;
     return `<div class="stu-card">
-      <div class="stu-av" style="background:${c};border-color:${c}aa">${ini}</div>
+      ${avatar}
       <div class="stu-info">
         <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
-        <div class="stu-stars">⭐ <span class="stu-stars-num">${stars}</span></div>
+        <div class="stu-stars">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))}</span>`:''}</div>
+        ${s.monster&&nx?`<div class="mon-prog" title="${nx.have}/${nx.need} bis ${STAGE_NAMES[nx.next]}"><div class="mon-prog-fill" style="width:${prog}%"></div></div>`:''}
         ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
       </div>
       <div class="stu-actions">
@@ -3692,16 +3810,102 @@ function delTraitFromLibrary(traitId){
   toast('Gelöscht');
 }
 
+/* MONSTER PICKER + EVOLUTION */
+let pickMonStuId=null, pickMonSel=null;
+
+function openMonsterPick(stuId){
+  const s=S.students.find(x=>x.id===stuId);
+  if(!s)return;
+  pickMonStuId=stuId;
+  pickMonSel=s.monster||null;
+  document.getElementById('mp-sub').textContent=`Für ${s.name} – am Muster erkennst du den Typ!`;
+  document.getElementById('mp-name').value=s.monsterName||'';
+  renderMonsterGrid();
+  document.getElementById('monster-modal').classList.add('on');
+}
+function renderMonsterGrid(){
+  const g=document.getElementById('mp-grid');
+  if(!MONSTER_LINES.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1"><span class="empty-icon">🥚</span>monsters.js fehlt im Repo – bitte mit hochladen.</div>';
+    return;
+  }
+  g.innerHTML=MONSTER_LINES.map(m=>`
+    <div class="mon-pick${pickMonSel===m.id?' sel':''}" onclick="pickMonSel='${m.id}';renderMonsterGrid()">
+      ${monsterSVG(m.id,0,52)}
+      <div class="mon-pick-name">${esc(m.typ)}</div>
+    </div>`).join('');
+}
+function closeMonsterPick(){
+  pickMonStuId=null;
+  document.getElementById('monster-modal').classList.remove('on');
+}
+function saveMonsterPick(){
+  if(!pickMonStuId)return;
+  if(!pickMonSel){toast('Bitte ein Ei auswählen');return}
+  const name=(document.getElementById('mp-name').value||'').trim();
+  const stuId=pickMonStuId;
+  const s=S.students.find(x=>x.id===stuId);
+  if(s){
+    s.monster=pickMonSel; s.monsterName=name;
+    saveLocal(); renderStudents();
+  }
+  if(ref){
+    const mon=pickMonSel, mname=name;
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===stuId);
+      if(idx===-1)return current;
+      arr[idx].monster=mon; arr[idx].monsterName=mname;
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+  const mt=monsterLine(pickMonSel);
+  addLog({type:'stustar',icon:'🥚',text:`${s?s.name:'?'} hat ein ${mt?mt.typ:''}-Ei gewählt`,sub:name?`Name: ${name}`:''});
+  closeMonsterPick();
+  toast('🥚 Monster gewählt!');
+}
+
+function monsterDisplayName(s){
+  if(s.monsterName) return s.monsterName;
+  const mt=monsterLine(s.monster);
+  return mt?mt.name:'Monster';
+}
+
+function showEvolutionBanner(s, newStage){
+  const old=document.getElementById('evo-ov'); if(old)old.remove();
+  const ov=document.createElement('div');
+  ov.id='evo-ov'; ov.className='evo-overlay';
+  ov.innerHTML=`<div class="evo-card">
+    <div class="evo-spr">${monsterSVG(s.monster,newStage,180)}</div>
+    <div class="evo-title">${newStage===1?'Geschlüpft!':'Entwicklung!'}</div>
+    <div class="evo-name">${esc(monsterDisplayName(s))}</div>
+    <div class="evo-sub">${esc(s.name)}s Monster ist jetzt: ${STAGE_NAMES[newStage]} ✨</div>
+  </div>`;
+  ov.onclick=()=>{ov.classList.remove('on');setTimeout(()=>ov.remove(),350)};
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=>ov.classList.add('on'));
+  try{confetti(80);}catch(e){}
+  setTimeout(()=>{ if(ov.parentNode){ov.classList.remove('on');setTimeout(()=>ov.remove(),350)} },6000);
+}
+
 /* INDIVIDUAL STUDENT STARS — positive Verstärkung fürs Kind */
 function giveStar(id){
   const s=S.students.find(x=>x.id===id);
   if(!s)return;
+  const stageBefore=monsterStage(s.stars||0);
   s.stars=(s.stars||0)+1;
+  const stageAfter=monsterStage(s.stars);
   saveLocal();
   renderStudents();
   addLog({type:'stustar',icon:'🌟',text:`+1 ⭐ für ${s.name}`,sub:`jetzt ${s.stars} · von ${U.name}`});
-  try{miniConfetti();}catch(e){}
-  toast(`🌟 ${s.name}: ${s.stars} ⭐`);
+  if(s.monster && stageAfter>stageBefore){
+    addLog({type:'stustar',icon:'✨',text:`${monsterDisplayName(s)} hat sich entwickelt!`,sub:`${s.name} · ${STAGE_NAMES[stageAfter]}`});
+    showEvolutionBanner(s, stageAfter);
+  } else {
+    try{miniConfetti();}catch(e){}
+    toast(`🌟 ${s.name}: ${s.stars} ⭐`);
+  }
 
   if(ref){
     syncDot('spin');
