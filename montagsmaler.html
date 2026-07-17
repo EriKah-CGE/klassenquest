@@ -276,7 +276,7 @@
 <!-- ============ START ============ -->
 <div class="screen active" id="screen-start">
   <h1><span class="brush">🎨</span> Montagsmaler</h1>
-  <p class="subtitle">Ein Tablet zeichnet, der große Bildschirm zeigt's, die Klasse rät!</p>
+  <p class="subtitle">So viele Wörter wie möglich pro Runde – zeichnen, rufen, raten!</p>
 
   <div class="setup-card">
     <div class="team-inputs">
@@ -305,7 +305,7 @@
     </div>
 
     <div class="row">
-      <label>Zeit pro Bild</label>
+      <label>Zeit pro Runde</label>
       <div class="seg" id="seg-time">
         <button data-v="60" class="sel">60 s</button>
         <button data-v="90">90 s</button>
@@ -347,7 +347,7 @@
     <div class="host-controls">
       <button class="big-btn" id="btn-round-start" style="display:none">▶ Runde starten</button>
       <button class="btn-guessed" id="btn-guessed" style="display:none">✔ Erraten! (+1)</button>
-      <button class="btn-giveup" id="btn-giveup" style="display:none">⏭ Auflösen ohne Punkt</button>
+      <button class="btn-giveup" id="btn-giveup" style="display:none">✗ Weiter (−1)</button>
     </div>
   </div>
 </div>
@@ -373,7 +373,7 @@
   <div class="pad-status" id="pad-status">Warten …</div>
   <div class="term-banner" id="term-banner">
     <div class="term" id="pad-term"></div>
-    <button class="skip" id="btn-skip-term">↻ Anderes Wort</button>
+    <button class="skip" id="btn-skip-term">↻ Weiter (−1)</button>
   </div>
   <div class="canvas-wrap" id="pad-canvas-wrap" style="display:none">
     <canvas id="pad-canvas" width="1000" height="625"></canvas>
@@ -637,6 +637,7 @@ const state={
   roundNum:1, roundsTotal:6, startTeam:0, drawTeam:0,
   dur:60, terms:[], termIdx:0, secret:'',
   phase:'lobby', tEnd:0, timerId:null,
+  roundGot:0, roundMiss:0, wordN:0,
 };
 const hctx=$('host-canvas').getContext('2d');
 let hostCache={}, hostOrder=[];
@@ -714,8 +715,7 @@ function hostListen(){
   });
   roomRef.child('skipReq').on('value',s=>{
     if(!s.val() || state.phase!=='draw') return;
-    state.secret=nextTerm();
-    fbPub({secret:state.secret});
+    wordDone(false);
   });
 }
 $('btn-lobby-start').addEventListener('pointerdown',()=>{
@@ -740,7 +740,8 @@ function prepRound(){
   hostCache={}; hostOrder=[]; clearCanvas(hctx);
   roomRef.child('strokes').remove();
   const tn=state.teams[state.drawTeam].name;
-  $('round-pill').textContent='Runde '+state.roundNum+' / '+state.roundsTotal;
+  state.roundGot=0; state.roundMiss=0;
+  updatePill();
   $('round-pill').style.background = state.drawTeam===0?'var(--teamA)':'var(--teamB)';
   $('canvas-msg').style.display='flex';
   $('canvas-msg').textContent='🎨 '+tn+' zeichnet – Tablet an den Zeichner geben!';
@@ -753,16 +754,21 @@ function prepRound(){
   fbPub({phase:'prep', round:{num:state.roundNum,total:state.roundsTotal,team:state.drawTeam},
     secret:null, reveal:null, skipReq:null});
 }
+function updatePill(){
+  $('round-pill').textContent='Runde '+state.roundNum+' / '+state.roundsTotal+
+    '  ·  ✔ '+state.roundGot+'  ✗ '+state.roundMiss;
+}
 $('btn-round-start').addEventListener('pointerdown',()=>{
   if(state.phase!=='prep') return;
   state.phase='draw';
   state.secret=nextTerm();
+  state.wordN++;
   state.tEnd=Date.now()+state.dur*1000;
   $('canvas-msg').style.display='none';
   $('btn-round-start').style.display='none';
   $('btn-guessed').style.display='inline-flex';
   $('btn-giveup').style.display='inline-flex';
-  fbPub({phase:'draw', secret:state.secret,
+  fbPub({phase:'draw', secret:state.secret, wordN:state.wordN,
     round:{num:state.roundNum,total:state.roundsTotal,team:state.drawTeam,tEnd:state.tEnd,dur:state.dur}});
   sWhistle();
   startHostTimer();
@@ -777,34 +783,56 @@ function startHostTimer(){
     $('timer-fill').style.width=(left/(state.dur*1000)*100)+'%';
     $('timer-fill').style.background = sec<=10 ? '#ff6b6b' : 'var(--led)';
     if(sec<=10 && sec>0 && sec!==lastTick){ lastTick=sec; sTick(); }
-    if(left<=0){ stopHostTimer(); endRound(false); }
+    if(left<=0){ stopHostTimer(); roundOver(); }
   },200);
 }
 function stopHostTimer(){ if(state.timerId){clearInterval(state.timerId);state.timerId=null;} }
-$('btn-guessed').addEventListener('pointerdown',()=>{ if(state.phase==='draw') endRound(true); });
-$('btn-giveup').addEventListener('pointerdown',()=>{ if(state.phase==='draw') endRound(false); });
-function endRound(got){
-  stopHostTimer();
-  state.phase='reveal';
-  if(got){ state.teams[state.drawTeam].score++; sYay(); burstConfetti(); }
-  else sNah();
+$('btn-guessed').addEventListener('pointerdown',()=>wordDone(true));
+$('btn-giveup').addEventListener('pointerdown',()=>wordDone(false));
+function wordDone(ok){
+  if(state.phase!=='draw') return;
+  if(ok){
+    state.teams[state.drawTeam].score++; state.roundGot++;
+    sYay(); burstConfetti(60);
+  } else {
+    state.teams[state.drawTeam].score--; state.roundMiss++;
+    sNah();
+  }
   $('tb-scoreA').textContent=state.teams[0].score;
   $('tb-scoreB').textContent=state.teams[1].score;
+  updatePill();
+  fbPub({score:[state.teams[0].score,state.teams[1].score]});
+  nextWord();
+}
+function nextWord(){
+  hostCache={}; hostOrder=[]; clearCanvas(hctx);
+  roomRef.child('strokes').remove();
+  state.secret=nextTerm();
+  state.wordN++;
+  fbPub({secret:state.secret, wordN:state.wordN});
+}
+function roundOver(){
+  state.phase='reveal';
+  const got=state.roundGot, miss=state.roundMiss, delta=got-miss;
+  const tn=state.teams[state.drawTeam].name;
   $('btn-guessed').style.display='none';
   $('btn-giveup').style.display='none';
+  sWhistle();
+  if(got>miss) burstConfetti();
   fbPub({phase:'reveal',
-    reveal:{term:state.secret, got, team:state.drawTeam},
+    reveal:{got, miss, last:state.secret, team:state.drawTeam},
     score:[state.teams[0].score,state.teams[1].score]});
+  $('reveal-head').textContent='⏱ Zeit um! Das letzte Wort war:';
   $('reveal-term').textContent=state.secret;
-  $('reveal-head').textContent = got ? '✔ Erraten! Das war:' : '⏱ Nicht erraten. Das war:';
-  $('reveal-result').textContent = got ? '+1 Punkt für '+state.teams[state.drawTeam].name : 'Kein Punkt';
+  $('reveal-result').textContent='✔ '+got+' erraten · ✗ '+miss+' weitergegeben  →  '
+    +(delta>=0?'+':'')+delta+' Punkte für '+tn;
   $('overlay-reveal').classList.add('active');
   setTimeout(()=>{
     $('overlay-reveal').classList.remove('active');
     state.roundNum++;
     if(state.roundNum>state.roundsTotal) endMatch();
     else prepRound();
-  },2800);
+  },3200);
 }
 function endMatch(){
   state.phase='end';
@@ -843,7 +871,7 @@ function hostCleanup(){
 }
 
 /* =================== TABLET (Zeichner / Rater) =================== */
-let padRef=null, padTeam=0, padRoundN=-1, padSynced=false, padTimerId=null;
+let padRef=null, padTeam=0, padRoundN=-1, padWordN=-1, padSynced=false, padTimerId=null;
 let myKeys=[], padCache={}, padOrder=[];
 const pctx=$('pad-canvas').getContext('2d');
 let curStroke=null, curRef=null, lastSync=0;
@@ -927,7 +955,12 @@ function renderPad(v){
 
   const r=v.round||{};
   if(r.num && r.num!==padRoundN){
-    padRoundN=r.num; myKeys=[]; padCache={}; padOrder=[]; padSynced=false;
+    padRoundN=r.num; padWordN=v.wordN||-1;
+    myKeys=[]; padCache={}; padOrder=[]; padSynced=false;
+    clearCanvas(pctx);
+  } else if(v.wordN && v.wordN!==padWordN){
+    padWordN=v.wordN;
+    myKeys=[]; padCache={}; padOrder=[]; padSynced=true;  /* frisches Wort: leer starten */
     clearCanvas(pctx);
   }
   const myTurn = r.team===padTeam;
@@ -970,8 +1003,8 @@ function renderPad(v){
   }
   if(phase==='reveal' && v.reveal){
     const rv=v.reveal;
-    stat.textContent = (rv.got ? '✔ Erraten! ' : '✗ Nicht erraten. ')+'Es war: „'+rv.term+'“'
-      +(rv.got ? ' – +1 für '+((v.names&&v.names[rv.team])||'') : '');
+    stat.textContent='⏱ Runde vorbei! ✔ '+rv.got+' erraten · ✗ '+rv.miss
+      +' weitergegeben. Letztes Wort: „'+rv.last+'“';
     return;
   }
   if(phase==='end'){
