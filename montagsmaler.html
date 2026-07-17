@@ -475,15 +475,75 @@
 
 <script>
 /* =================== DATEN =================== */
-const BUILTIN_WORDS=[
+const BUILTIN_SETS=[
+{id:'schule', name:'🎒 Schule & Klassenzimmer', words:[
+'Tafel','Kreide','Schwamm','Lineal','Geodreieck','Zirkel','Bleistift','Füller','Radiergummi','Spitzer',
+'Mäppchen','Schulranzen','Turnbeutel','Brotdose','Trinkflasche','Stundenplan','Zeugnis','Hausaufgabenheft',
+'Klassenbuch','Beamer','Landkarte','Globus','Papierflieger','Spickzettel','Melden','Pausenklingel',
+'Schulbus','Fahrradständer','Klettergerüst','Tischtennisplatte','Basketballkorb','Mülleimer',
+'Erste-Hilfe-Kasten','Feueralarm','Klassenfoto','Schließfach','Kopierer','Lehrerpult','Schulhof','Kreidestaub'
+]},
+{id:'mathe', name:'📐 Mathe & Geometrie', words:[
+'Dreieck','Quadrat','Kreis','Würfel','Kugel','Pyramide','Zylinder','Kegel','Quader','Rechteck',
+'Raute','Trapez','Winkel','Zahlenstrahl','Tortendiagramm','Balkendiagramm','Koordinatensystem',
+'Taschenrechner','Abakus','Waage','Maßband','Uhr','Sanduhr','Prozentzeichen','Unendlichzeichen',
+'Pluszeichen','Symmetrie','Würfelnetz','Muster','Geldschein','Münze','Sparschwein','Spielwürfel','Zollstock'
+]},
+{id:'bio', name:'🌿 Biologie & Natur', words:[
+'Herz','Gehirn','Skelett','Lunge','Auge','Ohr','Zahn','Magen','Muskel','Wirbelsäule',
+'Zelle','Bakterie','DNA','Mikroskop','Lupe','Blüte','Wurzel','Blatt','Jahresringe','Raupe',
+'Kokon','Frosch','Kaulquappe','Spinnennetz','Ameisenhaufen','Bienenstock','Vogelnest','Fledermaus',
+'Delfin','Hai','Oktopus','Chamäleon','Pfau','Storch','Marienkäfer','Regenwurm','Pilz','Seerose',
+'Eichel','Tannenzapfen','Dinosaurier','Fossil'
+]},
+{id:'physik', name:'🧪 Physik & Chemie', words:[
+'Magnet','Batterie','Glühbirne','Stromkreis','Blitzableiter','Prisma','Fernrohr','Satellit','Planet',
+'Sonnenfinsternis','Mond','Sternschnuppe','Kompass','Sprungfeder','Flaschenzug','Wippe','Zahnrad',
+'Reagenzglas','Bunsenbrenner','Explosion','Schutzbrille','Trichter','Pipette','Kristall','Eiswürfel',
+'Solaranlage','Windrad','Antenne','Fernglas','Lautsprecher'
+]},
+{id:'geschichte', name:'🏛️ Geschichte', words:[
+'Ritter','Ritterrüstung','Schwert','Schild','Katapult','Pharao','Sphinx','Mumie','Hieroglyphen',
+'Papyrus','Streitwagen','Gladiator','Kolosseum','Aquädukt','Legionär','Wikingerschiff','Wikingerhelm',
+'Steinzeitmensch','Höhlenmalerei','Mammut','Faustkeil','Lagerfeuer','Speer','Thron','Krone','Kutsche',
+'Lanze','Schatztruhe','Piratenschiff','Kanone','Segelschiff','Postkutsche','Dampflok','Federkiel',
+'Pergamentrolle','Wappen','Fackel','Galeere'
+]},
+{id:'erdkunde', name:'🌍 Erdkunde', words:[
+'Vulkan','Gletscher','Wüste','Oase','Insel','Gebirge','Fluss','See','Welle','Weltkarte',
+'Nordpol','Iglu','Kamel','Känguru','Eisbär','Reisfeld','Windmühle','Staudamm','Brücke','Tunnel',
+'Hafen','Flughafen','Eiffelturm','Big Ben','Freiheitsstatue','Schiefer Turm von Pisa','Chinesische Mauer',
+'Geysir','Erdbeben','Tornado','Regenwald','Wasserfall','Leuchtturm','Fähre','Seilbahn'
+]},
+{id:'kunst', name:'🎼 Musik, Kunst & Sport', words:[
+'Geige','Trompete','Flöte','Saxofon','Schlagzeug','Harfe','Akkordeon','Dudelsack','Notenschlüssel',
+'Dirigent','Mikrofon','Plattenspieler','Staffelei','Pinsel','Farbpalette','Töpferscheibe','Statue',
+'Theatermaske','Theaterbühne','Ballerina','Zirkuszelt','Jongleur','Fußballschuh','Trikot','Pokal',
+'Medaille','Stoppuhr','Hürde','Stabhochsprung','Reck','Seilspringen','Torwart','Schiedsrichter',
+'Tischtennisschläger','Federball','Pfeil und Bogen','Kletterwand','Skier','Schlittschuhe','Boxhandschuhe','Surfbrett'
+]},
+{id:'maerchen', name:'📚 Märchen & Geschichten', words:[
+'Hexe','Zauberer','Froschkönig','Rapunzel','Lebkuchenhaus','Wolf','Rotkäppchen','Zauberspiegel',
+'Giftapfel','Spinnrad','Glasschuh','Kürbiskutsche','Fee','Zwerg','Riese','Troll','Prinzessin','Prinz',
+'Schloss','Turm','Zauberbuch','Kristallkugel','Fliegender Teppich','Wunderlampe','Flaschengeist',
+'Schatzkarte','Bücherregal','Lesezeichen','Sprechblase','Superheld','Umhang','Zauberhut',
+'Hexenbesen','Hexenkessel','Wegweiser'
+]},
+{id:'feste', name:'🎉 Schuljahr & Feste', words:[
+'Schultüte','Reisebus','Wanderschuhe','Siegertreppchen','Weihnachtsbaum','Adventskranz','Nikolausstiefel',
+'Geschenk','Feuerwerk','Karnevalsmaske','Luftschlange','Konfetti','Osterei','Osterhase','Maibaum',
+'Liegestuhl','Sonnencreme','Flugdrachen','Kürbislaterne','Vogelscheuche','Laterne','Plätzchen',
+'Schneeballschlacht','Schneeflocke','Geburtstagskuchen','Gummistiefel','Adventskalender','Wunderkerze','Zuckerstange'
+]},
+{id:'allgemein', name:'🎨 Allgemeine Wörter', words:[
 'Elefant','Giraffe','Pinguin','Schnecke','Schmetterling','Krokodil','Eule','Qualle','Igel','Biene',
-'Lineal','Tafel','Rucksack','Bleistift','Zirkel','Pausenbrot','Turnhalle','Radiergummi',
-'Regenschirm','Zahnbürste','Kopfhörer','Fahrrad','Leiter','Schlüssel','Brille','Kerze','Koffer','Wecker',
-'Brezel','Spaghetti','Erdbeere','Eiswaffel','Pizza','Banane','Zuckerwatte','Spiegelei',
-'Fußballtor','Trampolin','Skateboard','Angel','Zelt','Schlitten','Schwimmbad','Hängematte',
-'Regenbogen','Vulkan','Wasserfall','Leuchtturm','Palme','Schneemann','Blitz','Kaktus',
-'Ritterburg','Pirat','Meerjungfrau','Roboter','Gespenst','Drache','Rakete','Einhorn','Zauberstab',
-'Feuerwehrmann','Astronaut','Clown','Koch','Gitarre','Trommel','Klavier'
+'Rucksack','Pausenbrot','Turnhalle','Regenschirm','Zahnbürste','Kopfhörer','Fahrrad','Leiter',
+'Schlüssel','Brille','Kerze','Koffer','Wecker','Brezel','Spaghetti','Erdbeere','Eiswaffel','Pizza',
+'Banane','Zuckerwatte','Spiegelei','Fußballtor','Trampolin','Skateboard','Angel','Zelt','Schlitten',
+'Schwimmbad','Hängematte','Regenbogen','Palme','Schneemann','Blitz','Kaktus','Ritterburg','Pirat',
+'Meerjungfrau','Roboter','Gespenst','Drache','Rakete','Einhorn','Zauberstab','Feuerwehrmann',
+'Astronaut','Clown','Koch','Gitarre','Trommel','Klavier'
+]},
 ];
 
 /* =================== HILFEN =================== */
@@ -501,13 +561,32 @@ let customSets = loadCustom();
 
 function fillSetSelect(){
   const sel=$('set-select'); sel.innerHTML='';
-  const o=document.createElement('option'); o.value='mm'; o.textContent='🎨 Montagsmaler-Wörter (eingebaut)';
-  sel.appendChild(o);
-  customSets.forEach((s,i)=>{ const c=document.createElement('option'); c.value='c:'+i; c.textContent='⭐ '+s.name+' ('+s.items.length+')'; sel.appendChild(c); });
+  const mix=document.createElement('option');
+  mix.value='b:mix'; mix.textContent='🌟 Alles gemischt ('+getMixWords().length+' Wörter)';
+  sel.appendChild(mix);
+  BUILTIN_SETS.forEach(s=>{
+    const o=document.createElement('option');
+    o.value='b:'+s.id; o.textContent=s.name+' ('+s.words.length+')';
+    sel.appendChild(o);
+  });
+  customSets.forEach((s,i)=>{
+    const c=document.createElement('option');
+    c.value='c:'+i; c.textContent='⭐ '+s.name+' ('+s.items.length+')';
+    sel.appendChild(c);
+  });
+}
+function getMixWords(){
+  const set=new Set();
+  BUILTIN_SETS.forEach(s=>s.words.forEach(w=>set.add(w)));
+  return [...set];
 }
 function getTerms(){
   const v=$('set-select').value;
-  if(v==='mm') return BUILTIN_WORDS.slice();
+  if(v==='b:mix') return getMixWords();
+  if(v.startsWith('b:')){
+    const s=BUILTIN_SETS.find(x=>x.id===v.slice(2));
+    return s ? s.words.slice() : [];
+  }
   const s=customSets[+v.slice(2)];
   return s ? s.items.map(it=>it.a) : [];
 }
