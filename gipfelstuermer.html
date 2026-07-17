@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gipfelstürmer 🏔️</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Bungee&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --sky1:#7ec3f2;
+    --sky2:#eaf7ff;
+    --ink:#22384b;
+    --ink-soft:#5c7186;
+    --card:#ffffff;
+    --blue:#1c7ed6;
+    --alpin:#e8590c;
+    --grün:#37b24d;
+    --granit:#7d8b99;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Fredoka",system-ui,sans-serif;font-weight:500;
+    color:var(--ink); overflow:hidden;
+    user-select:none;-webkit-user-select:none; touch-action:manipulation;
+    background:
+      radial-gradient(circle at 82% 12%, rgba(255,235,140,.85) 0 46px, rgba(255,235,140,.35) 60px, transparent 110px),
+      radial-gradient(ellipse at 18% 22%, rgba(255,255,255,.9) 0 34px, transparent 60px),
+      radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.85) 0 26px, transparent 48px),
+      radial-gradient(ellipse at 68% 32%, rgba(255,255,255,.7) 0 30px, transparent 55px),
+      linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 75%,#dff0e2 100%);
+  }
+  h1,h2,.display{font-family:"Fredoka",sans-serif;font-weight:600;letter-spacing:.01em;}
+  .digits{font-family:"Bungee",monospace;}
+  button{font-family:inherit;font-weight:600;border:none;cursor:pointer;color:var(--ink);}
+  button:focus-visible{outline:3px solid var(--blue);outline-offset:2px;}
+
+  .screen{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden;}
+  .screen.active{display:flex;}
+  #screen-start,#screen-editor,#screen-set,#screen-join{
+    padding:1.2rem;gap:1rem;overflow-y:auto;align-items:center;justify-content:center;
+  }
+  #screen-editor,#screen-set{justify-content:flex-start;}
+
+  /* ---------- Start ---------- */
+  #screen-start h1{
+    font-size:clamp(2.6rem,7vw,4.8rem);text-align:center;line-height:1;
+    text-shadow:0 3px 0 rgba(255,255,255,.7);
+  }
+  #screen-start h1 .peak{display:inline-block;animation:bob 3s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .subtitle{color:var(--ink-soft);font-size:1.15rem;text-align:center;margin-top:-.5rem;}
+  .setup-card,.editor-card{
+    background:var(--card);border:3px solid var(--ink);border-radius:20px;
+    padding:1.4rem 1.6rem;width:min(680px,94vw);
+    display:flex;flex-direction:column;gap:1rem;
+    box-shadow:0 12px 30px rgba(34,56,75,.25);
+  }
+  .editor-card{width:min(760px,96vw);}
+  .row{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;}
+  .row label{font-weight:600;min-width:9.5rem;font-size:1.1rem;}
+  input[type=text],textarea,select{
+    background:#f4faff;border:2px solid var(--ink);border-radius:12px;
+    color:var(--ink);font-size:1.1rem;padding:.7rem .9rem;width:100%;
+    font-family:inherit;
+  }
+  textarea{min-height:8rem;resize:vertical;font-size:1rem;}
+  select{flex:1;min-width:0;width:auto;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(28,126,214,.25);}
+  .seg{display:flex;gap:.4rem;flex:1;}
+  .seg button{
+    flex:1;background:#f4faff;border:2px solid var(--ink);border-radius:12px;
+    padding:.6rem .4rem;font-size:1.05rem;min-height:3rem;
+  }
+  .seg button.sel{background:var(--blue);color:#fff;}
+  .big-btn{
+    background:var(--blue);color:#fff;
+    font-size:1.7rem;font-weight:600;padding:.9rem;border-radius:16px;
+    min-height:4.3rem;border:3px solid var(--ink);
+    box-shadow:0 6px 0 #135a9e;
+    transition:transform .08s, box-shadow .08s;
+  }
+  .big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #135a9e;}
+  .ghost-btn{
+    background:#fff;border:2px solid var(--ink);border-radius:14px;
+    font-size:1.1rem;padding:.75rem 1.2rem;min-height:3.3rem;
+  }
+  .ghost-btn:active{background:#e7f1fb;}
+  .hint{color:var(--ink-soft);font-size:.98rem;line-height:1.35;font-weight:500;}
+  #start-error{
+    display:none;background:#fff4ec;border:3px dashed var(--alpin);border-radius:14px;
+    color:#c74706;font-weight:600;font-size:1.05rem;padding:.8rem 1rem;line-height:1.4;
+  }
+  .icon-btns{position:absolute;top:.4rem;right:.5rem;display:flex;gap:.4rem;z-index:30;}
+  .icon-btn{
+    background:#fff;border:2px solid var(--ink);border-radius:12px;
+    width:3rem;height:3rem;font-size:1.3rem;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ---------- Host: Spiel ---------- */
+  #screen-game{gap:0;}
+  .topbar{
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    background:rgba(255,255,255,.9);border-bottom:3px solid var(--ink);
+    padding:.45rem 1rem;gap:.6rem;backdrop-filter:blur(3px);
+  }
+  .tb-alt{
+    display:flex;align-items:center;gap:.5rem;font-size:clamp(1.1rem,2.6vw,1.7rem);font-weight:600;
+  }
+  .tb-alt .digits{color:var(--blue);}
+  .tb-timer{
+    font-family:"Bungee";font-size:clamp(1.4rem,3.6vw,2.3rem);color:var(--ink);
+    background:#fff;border:2px solid var(--ink);border-radius:12px;padding:.05rem .7rem;
+  }
+  .tb-timer.low{color:#fff;background:var(--alpin);animation:pulseT 1s ease infinite;}
+  @keyframes pulseT{50%{transform:scale(1.06);}}
+  .tb-right{display:flex;justify-content:flex-end;align-items:center;gap:.5rem;
+    font-size:clamp(1rem,2.2vw,1.4rem);font-weight:600;color:var(--ink-soft);}
+  .penalty-pop{
+    position:fixed;top:12%;left:50%;transform:translateX(-50%);z-index:40;
+    font-family:"Bungee";font-size:clamp(1.6rem,5vw,3rem);color:#fff;
+    background:var(--alpin);border:3px solid var(--ink);border-radius:16px;padding:.2em .6em;
+    display:none;box-shadow:0 8px 20px rgba(34,56,75,.4);
+  }
+  .penalty-pop.show{display:block;animation:popIn .45s ease;}
+  @keyframes popIn{0%{transform:translateX(-50%) scale(.4)}70%{transform:translateX(-50%) scale(1.12)}100%{transform:translateX(-50%) scale(1)}}
+
+  .game-main{flex:1;display:flex;gap:1rem;padding:1rem;min-height:0;}
+  .mountain-wrap{
+    flex:1.1;position:relative;min-width:0;min-height:0;
+    border:3px solid var(--ink);border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,#9fd4f5 0%,#cdeafc 60%,#e8f6e9 100%);
+    box-shadow:0 10px 25px rgba(34,56,75,.25);
+  }
+  .mountain-wrap svg{position:absolute;inset:0;width:100%;height:100%;}
+  #climber{
+    position:absolute;font-size:clamp(1.8rem,4.5vh,2.8rem);line-height:1;z-index:6;
+    transform:translate(-50%,-85%);
+    transition:left 1s cubic-bezier(.45,1.3,.55,1), top 1s cubic-bezier(.45,1.3,.55,1);
+    filter:drop-shadow(0 4px 4px rgba(34,56,75,.4));
+  }
+  #climber.climbing{animation:hop 1s ease;}
+  @keyframes hop{40%{transform:translate(-50%,-120%) rotate(-8deg);}}
+  .step-dot{
+    position:absolute;width:9px;height:9px;border-radius:50%;z-index:4;
+    background:#fff;border:2px solid var(--ink);transform:translate(-50%,-50%);opacity:.85;
+  }
+  .step-dot.done{background:var(--grün);}
+  .rock{
+    position:absolute;font-size:2rem;z-index:7;top:-10%;
+    animation:rockfall 1.1s ease-in forwards;
+  }
+  @keyframes rockfall{
+    0%{transform:translateY(0) rotate(0);opacity:1;}
+    100%{transform:translateY(75vh) rotate(340deg);opacity:0;}
+  }
+  .mountain-wrap.shake{animation:mShake .5s ease;}
+  @keyframes mShake{20%{transform:translate(-7px,3px)}45%{transform:translate(6px,-3px)}70%{transform:translate(-4px,2px)}}
+
+  .quiz-col{
+    flex:1;display:flex;flex-direction:column;gap:.9rem;min-width:0;min-height:0;
+    justify-content:center;
+  }
+  .q-card{
+    background:#fff;border:3px solid var(--ink);border-radius:16px;
+    padding:.9rem 1.2rem;min-height:5rem;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    box-shadow:0 8px 20px rgba(34,56,75,.2);
+  }
+  .q-text{font-size:clamp(1.3rem,2.8vw,2.1rem);font-weight:600;line-height:1.25;}
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+  .answer-btn{
+    color:#fff;border:3px solid var(--ink);border-radius:14px;
+    font-size:clamp(1.1rem,2.2vw,1.6rem);font-weight:600;
+    padding:.7rem .9rem;min-height:4.2rem;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    transition:transform .08s, filter .2s, opacity .2s;
+    word-break:break-word;
+  }
+  .answer-btn:active{transform:scale(.97);}
+  .answer-btn .shape{font-size:.85em;margin-right:.55em;}
+  .answer-btn.ans-0{background:linear-gradient(180deg,#ff5c77,#c8102e);}
+  .answer-btn.ans-1{background:linear-gradient(180deg,#3d87e0,#0f4fa8);}
+  .answer-btn.ans-2{background:linear-gradient(180deg,#f0b421,#b57e00);}
+  .answer-btn.ans-3{background:linear-gradient(180deg,#43a832,#1e6b14);}
+  .answer-btn.correct{box-shadow:0 0 0 4px #fff, 0 0 22px rgba(255,255,255,.8);}
+  .answer-btn.correct::after{content:'✓';margin-left:.5em;}
+  .answer-btn.struck{filter:saturate(.25) brightness(.55);opacity:.7;}
+  .answer-btn.struck::after{content:'✗';margin-left:.5em;}
+  .answer-btn:disabled{cursor:default;}
+  .host-status{
+    text-align:center;font-size:clamp(1rem,2.2vw,1.4rem);font-weight:600;color:var(--ink-soft);
+    min-height:1.5em;
+  }
+
+  /* ---------- Tablet ---------- */
+  #screen-pad{padding:.9rem .9rem 1rem;gap:.8rem;}
+  .pad-head{
+    font-size:clamp(1.4rem,4.5vw,2rem);font-weight:600;text-align:center;color:#fff;
+    padding:.45rem;border-radius:14px;background:var(--blue);border:2px solid var(--ink);
+  }
+  .pad-status{
+    text-align:center;font-size:clamp(1.1rem,3.5vw,1.45rem);font-weight:600;min-height:1.6rem;
+  }
+  .pad-alt{
+    text-align:center;font-family:"Bungee";font-size:1.15rem;color:var(--blue);
+  }
+  #pad-qcard{min-height:4.5rem;}
+  #pad-answers{flex:1;min-height:0;}
+  .pad-foot{display:flex;justify-content:flex-end;align-items:center;gap:.8rem;}
+  body.pad-only .icon-btns{display:none !important;}
+  body.pad-only #btn-pad-leave{display:none !important;}
+  body.pad-only{overscroll-behavior:none;}
+
+  /* ---------- Editor ---------- */
+  .editor-card h2{font-size:1.7rem;}
+  .item-list{display:flex;flex-direction:column;gap:.5rem;max-height:38vh;overflow-y:auto;}
+  .item-row{
+    display:flex;gap:.6rem;align-items:center;background:#eef6fd;
+    border:2px solid rgba(34,56,75,.3);border-radius:12px;padding:.5rem .8rem;font-size:1rem;
+  }
+  .item-row .qa{flex:1;min-width:0;}
+  .item-row .qa b{color:var(--blue);}
+  .del-btn{background:#e03131;color:#fff;border:2px solid var(--ink);border-radius:10px;width:2.6rem;height:2.6rem;font-size:1.1rem;flex:none;}
+  .set-row{
+    display:flex;justify-content:space-between;align-items:center;gap:.8rem;
+    background:#fff;border:2px solid var(--ink);border-radius:14px;
+    padding:.85rem 1.1rem;font-size:1.15rem;min-height:3.8rem;width:100%;text-align:left;
+  }
+  .set-row:active{background:#e7f1fb;}
+  .set-row-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .set-row-meta{color:var(--ink-soft);font-weight:600;white-space:nowrap;flex:none;}
+  .method-btns{display:flex;gap:.8rem;}
+  .method-btns .ghost-btn{flex:1;}
+  .method-btns .ghost-btn.sel{background:var(--blue);color:#fff;}
+  .set-warn{
+    background:#fff4ec;border:2px solid var(--alpin);border-radius:12px;
+    padding:.6rem .9rem;font-size:.95rem;color:#c74706;font-weight:600;
+  }
+  .list-head{display:flex;justify-content:space-between;align-items:baseline;}
+  .list-head h3{font-size:1.3rem;font-weight:600;}
+  .count-badge{color:var(--ink-soft);font-weight:600;}
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:1.1rem;background:rgba(20,38,55,.88);z-index:50;text-align:center;padding:2rem;
+    color:#fff;
+  }
+  .overlay.active{display:flex;}
+  .overlay h2{font-size:clamp(2.2rem,8vw,4.6rem);}
+  .overlay .who{font-size:clamp(1.2rem,3.6vw,2rem);font-weight:600;}
+  .qr-row{display:flex;gap:1.6rem;flex-wrap:wrap;justify-content:center;}
+  .qr-box{
+    background:#fff;border-radius:16px;padding:.8rem .8rem .6rem;
+    display:flex;flex-direction:column;align-items:center;gap:.5rem;
+    box-shadow:0 8px 25px rgba(0,0,0,.4);color:var(--ink);
+  }
+  .qr-label{font-weight:700;font-size:1.05rem;}
+  .qr-box img,.qr-box canvas{display:block;}
+  .room-code-inline{font-family:"Bungee";color:#ffd43b;letter-spacing:.12em;padding:0 .2em;}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:60;}
+  @media (max-width:820px){
+    .game-main{flex-direction:column;}
+    .mountain-wrap{min-height:34vh;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="icon-btns">
+  <button class="icon-btn" id="btn-sound" title="Ton an/aus">🔊</button>
+  <button class="icon-btn" id="btn-fullscreen" title="Vollbild">⛶</button>
+  <button class="icon-btn" id="btn-home" title="Zum Startbildschirm" style="display:none">🏠</button>
+</div>
+
+<div class="penalty-pop" id="penalty-pop">🪨 −15 s</div>
+
+<!-- ============ START ============ -->
+<div class="screen active" id="screen-start">
+  <h1><span class="peak">🏔️</span> Gipfelstürmer</h1>
+  <p class="subtitle">Die ganze Klasse ist eine Seilschaft: richtig antworten, klettern, den Gipfel vor Ablauf der Zeit erreichen!</p>
+
+  <div class="setup-card">
+    <div class="row">
+      <label>Frageset</label>
+      <select id="set-select"></select>
+    </div>
+
+    <div class="row" id="row-difficulty" style="display:none">
+      <label>Schwierigkeit</label>
+      <div class="seg" id="seg-diff">
+        <button data-v="leicht" class="sel">Leicht</button>
+        <button data-v="mittel">Mittel</button>
+        <button data-v="schwer">Schwer</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Gipfelhöhe</label>
+      <div class="seg" id="seg-goal">
+        <button data-v="10">10</button>
+        <button data-v="15" class="sel">15</button>
+        <button data-v="20">20</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Zeitbudget</label>
+      <div class="seg" id="seg-time">
+        <button data-v="180">3 min</button>
+        <button data-v="300" class="sel">5 min</button>
+        <button data-v="480">8 min</button>
+      </div>
+    </div>
+
+    <button class="big-btn" id="btn-start">🧗 Aufbruch!</button>
+    <p id="start-error"></p>
+    <button class="ghost-btn" id="btn-editor">📝 Eigene Fragesets verwalten</button>
+    <button class="ghost-btn" id="btn-join">📱 Dieses Gerät ist ein Antwort-Tablet</button>
+    <p class="hint">Gemeinsame Set-Bibliothek mit Fachwort-Fußball und Montagsmaler. Falsche Antworten lösen Steinschlag aus: <b>−15 Sekunden</b>, die Frage bleibt offen.</p>
+  </div>
+</div>
+
+<!-- ============ HOST: SPIEL ============ -->
+<div class="screen" id="screen-game">
+  <div class="topbar">
+    <div class="tb-alt">⛰ <span class="digits" id="tb-alt">0</span>&nbsp;/&nbsp;<span class="digits" id="tb-goal">15</span> Höhenmeter</div>
+    <div class="tb-timer digits" id="tb-timer">5:00</div>
+    <div class="tb-right" id="tb-pads">📱 –</div>
+  </div>
+
+  <div class="game-main">
+    <div class="mountain-wrap" id="mountain-wrap">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <polygon points="0,100 18,52 34,100" fill="#b7cddb"/>
+        <polygon points="62,100 84,44 100,100" fill="#b7cddb"/>
+        <polygon points="8,100 50,6 92,100" fill="#8496a5"/>
+        <polygon points="50,6 41,24 46,22 50,28 55,21 59,25 50,6" fill="#ffffff"/>
+        <polygon points="0,100 12,84 26,92 40,82 58,94 74,84 100,96 100,100 0,100" fill="#5aa768"/>
+      </svg>
+      <div id="flag" style="position:absolute;z-index:5;font-size:1.6rem;transform:translate(-30%,-95%);">🚩</div>
+      <div id="climber">🧗</div>
+    </div>
+
+    <div class="quiz-col">
+      <div class="q-card"><div class="q-text" id="q-text">…</div></div>
+      <div class="answers" id="answers"></div>
+      <div class="host-status" id="host-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TABLET: BEITRETEN ============ -->
+<div class="screen" id="screen-join">
+  <div class="editor-card">
+    <h2>📱 Mitklettern</h2>
+    <p class="hint">Gebt den 4-Buchstaben-Code ein, der an der Tafel angezeigt wird.</p>
+    <input type="text" id="join-code" maxlength="4" autocomplete="off" placeholder="CODE" style="font-family:'Bungee';font-size:2.2rem;text-align:center;letter-spacing:.3em;text-transform:uppercase;">
+    <button class="big-btn" id="btn-join-go">Beitreten</button>
+    <button class="ghost-btn" id="btn-join-back">‹ Zurück</button>
+  </div>
+</div>
+
+<!-- ============ TABLET: ANTWORTGERÄT ============ -->
+<div class="screen" id="screen-pad">
+  <div class="pad-head" id="pad-head">🧗 Seilschaft</div>
+  <div class="pad-status" id="pad-status">Warten …</div>
+  <div class="pad-alt" id="pad-alt"></div>
+  <div class="q-card" id="pad-qcard" style="display:none"><div class="q-text" id="pad-qtext"></div></div>
+  <div class="answers" id="pad-answers"></div>
+  <div class="pad-foot">
+    <button class="ghost-btn" id="btn-pad-retry" style="display:none">↻ Neu verbinden</button>
+    <button class="ghost-btn" id="btn-pad-leave">Verlassen</button>
+  </div>
+</div>
+
+<!-- ============ EDITOR: SET-ÜBERSICHT ============ -->
+<div class="screen" id="screen-editor">
+  <div class="editor-card">
+    <h2>📝 Eigene Fragesets</h2>
+    <p class="hint">Gemeinsame Bibliothek mit Fachwort-Fußball und Montagsmaler. Für den Gipfelstürmer braucht ein Set <b>mindestens 4 Einträge</b>, damit Antwortmöglichkeiten gemischt werden können.</p>
+    <button class="big-btn" id="btn-new-set" style="font-size:1.35rem;min-height:3.8rem">➕ Neues Set anlegen</button>
+    <div class="item-list" id="set-list" style="max-height:40vh"></div>
+    <div class="row">
+      <button class="ghost-btn" id="btn-export" style="flex:1">⬇️ Sets sichern</button>
+      <button class="ghost-btn" id="btn-import" style="flex:1">⬆️ Sets laden</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+    </div>
+    <button class="ghost-btn" id="btn-editor-back">‹ Zurück zum Start</button>
+  </div>
+</div>
+
+<!-- ============ EDITOR: SET BEARBEITEN ============ -->
+<div class="screen" id="screen-set">
+  <div class="editor-card">
+    <div class="row" style="flex-wrap:nowrap">
+      <button class="ghost-btn" id="btn-set-back" style="flex:none">‹ Sets</button>
+      <input type="text" id="set-name-input" maxlength="40">
+      <button class="del-btn" id="btn-del-set" title="Set löschen">🗑</button>
+    </div>
+    <div class="set-warn" id="set-warn" style="display:none">⚠️ Noch zu wenige Einträge – im Quiz spielbar ab 4.</div>
+    <div class="method-btns">
+      <button class="ghost-btn" id="btn-open-paste">📋 Liste einfügen</button>
+      <button class="ghost-btn" id="btn-open-single">➕ Einzelne Frage</button>
+    </div>
+    <div id="paste-panel" style="display:none;flex-direction:column;gap:.6rem">
+      <textarea id="paste-area" placeholder="Eine Frage pro Zeile – Frage und Antwort getrennt durch Tabulator, Semikolon oder „ - “, z.B.:&#10;Was heißt „the ruler“?; das Lineal&#10;7 · 8 - 56"></textarea>
+      <div class="hint" id="paste-preview">Pro Zeile: Frage [Tab / ; / „ - “] Antwort</div>
+      <button class="big-btn" id="btn-paste-apply" style="font-size:1.3rem;min-height:3.6rem">Übernehmen</button>
+    </div>
+    <div id="single-panel" style="display:none;flex-direction:column;gap:.6rem">
+      <input type="text" id="new-q" placeholder="Frage (z.B. Was heißt „the ruler“?)">
+      <div class="row" style="flex-wrap:nowrap">
+        <input type="text" id="new-a" placeholder="Richtige Antwort (z.B. das Lineal)">
+        <button class="ghost-btn" id="btn-add-item" style="flex:none">➕</button>
+      </div>
+    </div>
+    <div class="list-head">
+      <h3>Fragen im Set</h3>
+      <span class="count-badge" id="set-count"></span>
+    </div>
+    <div class="item-list" id="item-list"></div>
+    <button class="big-btn" id="btn-set-done">✅ Fertig – zurück zum Spiel</button>
+  </div>
+</div>
+
+<!-- ============ OVERLAYS ============ -->
+<div class="overlay" id="overlay-lobby">
+  <h2 class="display" style="font-size:clamp(1.8rem,6vw,3.5rem)">📱 Tablets verbinden</h2>
+  <div class="who">Mit der Tablet-Kamera einen der Codes scannen (1 oder 2 Tablets):</div>
+  <div class="qr-row">
+    <div class="qr-box"><div class="qr-label">🧗 Tablet 1</div><div id="qr-0"></div></div>
+    <div class="qr-box"><div class="qr-label">🧗 Tablet 2</div><div id="qr-1"></div></div>
+  </div>
+  <div class="who" style="font-size:1.05rem;opacity:.85">… oder von Hand: Spiel öffnen → „Antwort-Tablet“ → Code <span class="room-code-inline" id="room-code">····</span></div>
+  <div class="who" id="lobby-status">📱 Noch kein Tablet verbunden</div>
+  <button class="big-btn" id="btn-lobby-start">▶ Aufbruch!</button>
+  <button class="ghost-btn" id="btn-lobby-cancel">Abbrechen</button>
+</div>
+
+<div class="overlay" id="overlay-end">
+  <h2 class="display" id="end-title">🏔️</h2>
+  <div class="who" id="end-who"></div>
+  <button class="big-btn" id="btn-retry">🔁 Neuer Versuch</button>
+  <button class="ghost-btn" id="btn-end-home">Zum Startbildschirm</button>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+/* =================== FRAGEN-DATEN =================== */
+const VOKABELN_5 = [
+  {q:'Was heißt „the ruler“ auf Deutsch?', a:'das Lineal', g:'de'},
+  {q:'Was heißt „the break“ auf Deutsch?', a:'die Pause', g:'de'},
+  {q:'Was heißt „the timetable“ auf Deutsch?', a:'der Stundenplan', g:'de'},
+  {q:'Was heißt „the subject“ auf Deutsch?', a:'das Schulfach', g:'de'},
+  {q:'Was heißt „the pencil case“ auf Deutsch?', a:'das Mäppchen', g:'de'},
+  {q:'Was heißt „the homework“ auf Deutsch?', a:'die Hausaufgaben', g:'de'},
+  {q:'Was heißt „the stairs“ auf Deutsch?', a:'die Treppe', g:'de'},
+  {q:'Was heißt „the kitchen“ auf Deutsch?', a:'die Küche', g:'de'},
+  {q:'Was heißt „the guinea pig“ auf Deutsch?', a:'das Meerschweinchen', g:'de'},
+  {q:'Was heißt „the horse“ auf Deutsch?', a:'das Pferd', g:'de'},
+  {q:'Was heißt „funny“ auf Deutsch?', a:'lustig', g:'de'},
+  {q:'Was heißt „dangerous“ auf Deutsch?', a:'gefährlich', g:'de'},
+  {q:'Was heißt „cheap“ auf Deutsch?', a:'billig', g:'de'},
+  {q:'Was heißt „to buy“ auf Deutsch?', a:'kaufen', g:'de'},
+  {q:'Was heißt „to laugh“ auf Deutsch?', a:'lachen', g:'de'},
+  {q:'Wie heißt „die Bücherei“ auf Englisch?', a:'the library', g:'en'},
+  {q:'Wie heißt „der Bahnhof“ auf Englisch?', a:'the station', g:'en'},
+  {q:'Wie heißt „das Erdgeschoss“ auf Englisch?', a:'the ground floor', g:'en'},
+  {q:'Wie heißt „der Schmetterling“ auf Englisch?', a:'the butterfly', g:'en'},
+  {q:'Wie heißt „das Eichhörnchen“ auf Englisch?', a:'the squirrel', g:'en'},
+  {q:'Wie heißt „die Geldbörse“ auf Englisch?', a:'the purse', g:'en'},
+  {q:'Wie heißt „das Geschenk“ auf Englisch?', a:'the present', g:'en'},
+  {q:'Wie heißt „der Kühlschrank“ auf Englisch?', a:'the fridge', g:'en'},
+  {q:'Wie heißt „berühmt“ auf Englisch?', a:'famous', g:'en'},
+  {q:'Wie heißt „müde“ auf Englisch?', a:'tired', g:'en'},
+  {q:'Wie heißt „schwierig“ auf Englisch?', a:'difficult', g:'en'},
+  {q:'Wie heißt „ausgezeichnet“ auf Englisch?', a:'excellent', g:'en'},
+  {q:'Wie heißt „sich beeilen“ auf Englisch?', a:'to hurry', g:'en'},
+];
+const GESCHICHTE_6 = [
+  {q:'Wie heißt der Wissenschaftler, der alte Überreste ausgräbt und erforscht?', a:'Archäologe'},
+  {q:'Wie nennt man alles, was uns Auskunft über die Vergangenheit gibt?', a:'Quelle'},
+  {q:'Wie nennt man die lange Zeit, bevor die Menschen schreiben konnten?', a:'Urgeschichte'},
+  {q:'Wie lebten die Menschen der Altsteinzeit? Sie waren …', a:'Jäger und Sammler'},
+  {q:'Wie nennt man es, wenn Menschen an einem festen Ort wohnen bleiben?', a:'sesshaft'},
+  {q:'Wie hieß der König im alten Ägypten?', a:'Pharao'},
+  {q:'Wie heißt das riesige Grabmal der ägyptischen Könige?', a:'Pyramide'},
+  {q:'Wie heißt die Bilderschrift der alten Ägypter?', a:'Hieroglyphen'},
+  {q:'Welcher Fluss machte das Land Ägypten fruchtbar?', a:'der Nil'},
+  {q:'Wie nennt man einen haltbar gemachten Leichnam im alten Ägypten?', a:'Mumie'},
+  {q:'Wie hieß ein griechischer Stadtstaat?', a:'Polis'},
+  {q:'Wie heißt die Staatsform, bei der das Volk mitbestimmt?', a:'Demokratie'},
+  {q:'Welches Sportfest feierten die Griechen zu Ehren des Zeus?', a:'Olympische Spiele'},
+  {q:'Wie hieß der Versammlungs- und Marktplatz einer griechischen Stadt?', a:'Agora'},
+  {q:'Wie nannte man den Rat der alten Männer in Rom?', a:'Senat'},
+  {q:'Wie hießen die beiden obersten Beamten der römischen Republik?', a:'Konsuln'},
+  {q:'Wie nennt man eine große Einheit des römischen Heeres?', a:'Legion'},
+  {q:'Wie heißt die römische Grenzbefestigung in Germanien?', a:'Limes'},
+  {q:'Wie hieß der zentrale Platz im alten Rom?', a:'Forum'},
+  {q:'Wie nennt man einen Kämpfer in der römischen Arena?', a:'Gladiator'},
+  {q:'Wie heißt die römische Wasserleitung?', a:'Aquädukt'},
+  {q:'Wie nennt man die Staatsform Roms ohne König („öffentliche Sache“)?', a:'Republik'},
+];
+const BUILTIN_SETS=[
+  {id:'mathe', name:'🔢 Kopfrechnen', math:true},
+  {id:'vok5',  name:'🇬🇧 Englisch-Vokabeln (Klasse 5)', items:VOKABELN_5},
+  {id:'ges6',  name:'🏛️ Geschichte: Fachbegriffe (Klasse 6)', items:GESCHICHTE_6},
+];
+
+/* =================== HILFEN =================== */
+const $ = id => document.getElementById(id);
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const rnd = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+const SHAPES=['▲','◆','●','■'];
+function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+function fmtN(n){ return n+(n===1?' Eintrag':' Einträge'); }
+function fmtTime(ms){
+  const s=Math.max(0,Math.ceil(ms/1000));
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+
+/* =================== GETEILTE SET-BIBLIOTHEK =================== */
+const LS_KEY='fwf_custom_sets_v1';
+function loadCustom(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)) || []; }catch(e){ return []; } }
+function saveCustom(sets){ localStorage.setItem(LS_KEY, JSON.stringify(sets)); }
+let customSets=loadCustom();
+function fillSetSelect(){
+  const sel=$('set-select'); sel.innerHTML='';
+  BUILTIN_SETS.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o); });
+  customSets.forEach((s,i)=>{ const c=document.createElement('option'); c.value='c:'+i; c.textContent='⭐ '+s.name+' ('+s.items.length+')'; sel.appendChild(c); });
+}
+function getSelectedSet(){
+  const v=$('set-select').value;
+  if(v.startsWith('c:')) return customSets[+v.slice(2)];
+  return BUILTIN_SETS.find(s=>s.id===v);
+}
+$('set-select').addEventListener('change',()=>{
+  const s=getSelectedSet();
+  $('row-difficulty').style.display = s && s.math ? 'flex' : 'none';
+});
+
+/* =================== SOUND =================== */
+let soundOn=true, actx=null;
+function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function tone(freq,dur,type='sine',vol=.25,when=0){
+  if(!soundOn) return;
+  const c=ac(),o=c.createOscillator(),g=c.createGain();
+  o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,c.currentTime+when);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+when+dur);
+  o.connect(g);g.connect(c.destination);
+  o.start(c.currentTime+when);o.stop(c.currentTime+when+dur+.05);
+}
+function sWhistle(){ tone(2200,.18,'square',.15); tone(2200,.3,'square',.15,.25); }
+function sStep(t){ tone(440+520*t,.16,'triangle',.3); tone(660+520*t,.2,'triangle',.25,.1); }
+function sRock(){ tone(120,.5,'sawtooth',.3); tone(90,.6,'sawtooth',.25,.15); }
+function sTick(){ tone(1500,.05,'square',.12); }
+function sFanfare(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,.3,'triangle',.3,i*.13)); }
+function sSad(){ tone(330,.35,'sawtooth',.2); tone(247,.45,'sawtooth',.2,.3); tone(196,.7,'sawtooth',.2,.65); }
+
+/* =================== KONFETTI =================== */
+const cvs=$('confetti'), cctx=cvs.getContext('2d');
+let particles=[],confettiRunning=false;
+function burstConfetti(n=140){
+  cvs.width=innerWidth;cvs.height=innerHeight;
+  const cols=['#ffd43b','#339af0','#ff6b6b','#51cf66','#e599f7','#fff'];
+  for(let i=0;i<n;i++)particles.push({
+    x:innerWidth/2+rnd(-80,80),y:innerHeight*0.35,
+    vx:(Math.random()-.5)*14,vy:Math.random()*-11-4,
+    s:rnd(6,12),c:cols[rnd(0,cols.length-1)],r:Math.random()*Math.PI,vr:(Math.random()-.5)*.3
+  });
+  if(!confettiRunning){confettiRunning=true;requestAnimationFrame(confettiTick);}
+}
+function confettiTick(){
+  cctx.clearRect(0,0,cvs.width,cvs.height);
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.35;p.r+=p.vr;
+    cctx.save();cctx.translate(p.x,p.y);cctx.rotate(p.r);
+    cctx.fillStyle=p.c;cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);cctx.restore();});
+  particles=particles.filter(p=>p.y<cvs.height+30);
+  if(particles.length){requestAnimationFrame(confettiTick);}else{confettiRunning=false;cctx.clearRect(0,0,cvs.width,cvs.height);}
+}
+
+/* =================== SCREENS =================== */
+function show(id){
+  if(PAD_ONLY && id!=='screen-pad') return;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+  $('btn-home').style.display = id==='screen-start' ? 'none' : 'flex';
+}
+function segValue(id){ return $(id).querySelector('.sel').dataset.v; }
+document.querySelectorAll('.seg').forEach(seg=>{
+  seg.addEventListener('pointerdown',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+  });
+});
+$('btn-sound').addEventListener('pointerdown',()=>{ soundOn=!soundOn; $('btn-sound').textContent=soundOn?'🔊':'🔇'; });
+$('btn-fullscreen').addEventListener('pointerdown',()=>{
+  if(document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(()=>{});
+});
+$('btn-home').addEventListener('pointerdown',()=>{
+  if($('screen-pad').classList.contains('active')){ padLeave(); return; }
+  if($('screen-game').classList.contains('active') && !confirm('Spiel wirklich beenden?')) return;
+  stopTimer(); hostCleanup(); show('screen-start');
+});
+function startError(msg){
+  const e=$('start-error');
+  e.textContent='⚠️ '+msg;
+  e.style.display='block';
+}
+
+/* =================== FIREBASE-BASIS =================== */
+window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {};
+let db=null, roomRef=null, roomCode='';
+let PAD_ONLY=false, lastJoin=null, wakeLock=null, isHost=false;
+function fbInit(){
+  if(typeof firebase==='undefined' || !window.FIREBASE_CONFIG.databaseURL) return false;
+  if(!db){
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    db=firebase.database();
+  }
+  return true;
+}
+function fbErrText(err){
+  const t=(err&&(err.code||err.message))||String(err);
+  if(/permission|denied/i.test(t)) return 'Zugriff verweigert (permission_denied) – die Firebase-Regeln blockieren den Pfad „fwf“.';
+  if(/network|unavailable|timeout/i.test(t)) return 'Netzwerkproblem – ist das Gerät im WLAN?';
+  return t;
+}
+function makeCode(){
+  const L='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c='';
+  for(let i=0;i<4;i++) c+=L[rnd(0,L.length-1)];
+  return c;
+}
+function fbPub(obj){ if(roomRef && isHost) roomRef.update(obj); }
+function reqWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(w=>{wakeLock=w;}).catch(()=>{});
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && (padRef||roomRef)) reqWakeLock();
+});
+
+/* =================== FRAGEN ERZEUGEN =================== */
+const state={
+  goal:15, alt:0, budget:300, tEnd:0, timerId:null,
+  set:null, difficulty:'leicht', usedIdx:new Set(),
+  qNum:0, current:null, wrongIdxs:[], processed:new Set(), locked:false,
+  phase:'lobby',
+};
+function mathQuestion(diff){
+  const kind = shuffle(diff==='leicht'?['add','sub','mul']:['add','sub','mul','div'])[0];
+  let a,b,ans,text;
+  if(diff==='leicht'){
+    if(kind==='add'){a=rnd(2,15);b=rnd(2,15);ans=a+b;text=a+' + '+b+' = ?';}
+    else if(kind==='sub'){a=rnd(5,20);b=rnd(1,a-1);ans=a-b;text=a+' − '+b+' = ?';}
+    else {a=rnd(2,5);b=rnd(2,9);ans=a*b;text=a+' · '+b+' = ?';}
+  } else if(diff==='mittel'){
+    if(kind==='add'){a=rnd(15,80);b=rnd(15,80);ans=a+b;text=a+' + '+b+' = ?';}
+    else if(kind==='sub'){a=rnd(30,99);b=rnd(11,a-1);ans=a-b;text=a+' − '+b+' = ?';}
+    else if(kind==='mul'){a=rnd(3,9);b=rnd(3,9);ans=a*b;text=a+' · '+b+' = ?';}
+    else {b=rnd(2,9);ans=rnd(3,9);a=b*ans;text=a+' : '+b+' = ?';}
+  } else {
+    if(kind==='add'){a=rnd(120,850);b=rnd(120,850);ans=a+b;text=a+' + '+b+' = ?';}
+    else if(kind==='sub'){a=rnd(300,999);b=rnd(101,a-1);ans=a-b;text=a+' − '+b+' = ?';}
+    else if(kind==='mul'){a=rnd(11,25);b=rnd(3,9);ans=a*b;text=a+' · '+b+' = ?';}
+    else {b=rnd(3,12);ans=rnd(6,25);a=b*ans;text=a+' : '+b+' = ?';}
+  }
+  const wrongs=new Set();
+  const cand=[ans+1,ans-1,ans+10,ans-10,ans+2,ans-2,ans+5,ans-5,ans+100,ans-100];
+  shuffle(cand).forEach(w=>{ if(wrongs.size<3 && w>=0 && w!==ans) wrongs.add(w); });
+  let k=3; while(wrongs.size<3){ const w=ans+k; if(w!==ans&&w>=0)wrongs.add(w); k++; }
+  return {text, options:shuffle([String(ans),...[...wrongs].map(String)]), correct:String(ans)};
+}
+function listQuestion(set){
+  const items=set.items;
+  if(state.usedIdx.size>=items.length) state.usedIdx.clear();
+  let idx; do{ idx=rnd(0,items.length-1); }while(state.usedIdx.has(idx));
+  state.usedIdx.add(idx);
+  const it=items[idx];
+  let pool=items.filter((x,i)=> i!==idx && x.a!==it.a && (!it.g || x.g===it.g));
+  if(pool.length<3) pool=items.filter((x,i)=> i!==idx && x.a!==it.a);
+  const wrongs=[]; const seen=new Set([it.a]);
+  shuffle(pool.slice()).forEach(x=>{ if(wrongs.length<3 && !seen.has(x.a)){wrongs.push(x.a);seen.add(x.a);} });
+  return {text:it.q, options:shuffle([it.a,...wrongs]), correct:it.a};
+}
+
+/* =================== BERG & PFAD =================== */
+function posFor(i,total){
+  const t=i/total;
+  const y=88-80*t;
+  const amp=(1-t)*28+4;
+  const x= i===0 ? 50 : 50+((i%2===1)?-1:1)*amp;
+  return {x,y};
+}
+function renderPath(){
+  document.querySelectorAll('.step-dot').forEach(d=>d.remove());
+  const wrap=$('mountain-wrap');
+  for(let i=1;i<=state.goal;i++){
+    const p=posFor(i,state.goal);
+    const d=document.createElement('div');
+    d.className='step-dot'; d.id='dot-'+i;
+    d.style.left=p.x+'%'; d.style.top=p.y+'%';
+    wrap.appendChild(d);
+  }
+  const top=posFor(state.goal,state.goal);
+  $('flag').style.left=top.x+'%'; $('flag').style.top=top.y+'%';
+  moveClimber(0,false);
+}
+function moveClimber(i,animate){
+  const p=posFor(i,state.goal);
+  const c=$('climber');
+  c.style.left=p.x+'%'; c.style.top=p.y+'%';
+  if(animate){ c.classList.remove('climbing'); void c.offsetWidth; c.classList.add('climbing'); }
+}
+
+/* =================== HOST =================== */
+$('btn-start').addEventListener('pointerdown',()=>{
+  const s=getSelectedSet();
+  if(!s){ startError('Bitte ein Frageset wählen.'); return; }
+  if(!s.math && (!s.items || s.items.length<4)){
+    startError('Dieses Set braucht mindestens 4 Einträge, damit Antwortmöglichkeiten gemischt werden können.');
+    return;
+  }
+  if(!fbInit()){
+    startError('Zum Spielen wird die Firebase-Verbindung gebraucht (config.js von Klassenquest im selben Ordner). Direkt von der Festplatte geöffnet fehlt sie – bitte über die Klassenquest-Adresse testen. Die Antworten kommen ja von den Tablets.');
+    return;
+  }
+  $('start-error').style.display='none';
+  state.set=s; state.difficulty=segValue('seg-diff');
+  state.goal=+segValue('seg-goal'); state.budget=+segValue('seg-time');
+  state.usedIdx.clear(); state.qNum=0; state.processed.clear();
+  isHost=true;
+  roomCode=makeCode();
+  roomRef=db.ref('fwf/'+roomCode);
+  roomRef.set({game:'gs', created:Date.now(), phase:'lobby', goal:state.goal})
+    .catch(err=>{
+      alert('Der Spielraum konnte nicht angelegt werden:\n'+fbErrText(err));
+      $('overlay-lobby').classList.remove('active'); hostCleanup();
+    });
+  roomRef.onDisconnect().remove();
+  hostListen();
+  $('room-code').textContent=roomCode;
+  makeQRs();
+  $('overlay-lobby').classList.add('active');
+});
+function makeQRs(){
+  [0,1].forEach(t=>{
+    const el=$('qr-'+t); el.innerHTML='';
+    const url=location.origin+location.pathname+'?join='+roomCode+'&team='+t;
+    if(typeof QRCode!=='undefined'){
+      new QRCode(el,{text:url,width:180,height:180,
+        colorDark:'#22384b',colorLight:'#ffffff',
+        correctLevel:QRCode.CorrectLevel.M});
+    } else el.textContent='QR nicht verfügbar – Code nutzen';
+  });
+}
+function hostListen(){
+  roomRef.child('pads').on('value',s=>{
+    const p=s.val()||{};
+    const n=(p[0]?1:0)+(p[1]?1:0);
+    $('lobby-status').textContent = n===0 ? '📱 Noch kein Tablet verbunden'
+      : '📱 '+n+' Tablet'+(n===1?'':'s')+' verbunden ✔';
+    $('tb-pads').textContent='📱 '+n;
+  });
+  roomRef.child('ans').on('value',s=>{
+    const a=s.val();
+    if(!a || !isHost || state.phase!=='climb') return;
+    [0,1].map(t=>a[t]).filter(e=>e && e.n===state.qNum)
+      .sort((x,y)=>(x.ts||0)-(y.ts||0))
+      .forEach(e=>{
+        const key=e.n+':'+e.i;
+        if(state.processed.has(key) || state.locked) return;
+        state.processed.add(key);
+        if(e.i===state.current.correctIdx) onCorrect(e.i);
+        else onWrong(e.i);
+      });
+  });
+}
+$('btn-lobby-start').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  startMatch();
+});
+$('btn-lobby-cancel').addEventListener('pointerdown',()=>{
+  $('overlay-lobby').classList.remove('active');
+  hostCleanup();
+});
+function startMatch(){
+  state.alt=0;
+  state.tEnd=Date.now()+state.budget*1000;
+  $('tb-goal').textContent=state.goal;
+  $('tb-alt').textContent='0';
+  show('screen-game');
+  renderPath();
+  reqWakeLock();
+  sWhistle();
+  nextQuestion();
+  startTimer();
+}
+function nextQuestion(){
+  state.phase='climb';
+  state.locked=false;
+  state.qNum++;
+  state.wrongIdxs=[];
+  state.current = state.set.math ? mathQuestion(state.difficulty) : listQuestion(state.set);
+  state.current.correctIdx = state.current.options.indexOf(state.current.correct);
+  $('q-text').textContent=state.current.text;
+  const box=$('answers'); box.innerHTML='';
+  state.current.options.forEach((opt,i)=>{
+    const b=document.createElement('button');
+    b.className='answer-btn ans-'+i; b.disabled=true;
+    b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
+    box.appendChild(b);
+  });
+  $('host-status').textContent='📱 Beratet euch – Antwort kommt vom Tablet!';
+  fbPub({phase:'climb',
+    q:{n:state.qNum, text:state.current.text, options:state.current.options},
+    wrong:[], alt:state.alt, goal:state.goal, tEnd:state.tEnd, ans:null});
+}
+function onWrong(i){
+  if(state.wrongIdxs.includes(i)) return;
+  state.wrongIdxs.push(i);
+  state.tEnd -= 15000;
+  fbPub({wrong:state.wrongIdxs, tEnd:state.tEnd});
+  const btns=[...document.querySelectorAll('#answers .answer-btn')];
+  if(btns[i]) btns[i].classList.add('struck');
+  sRock();
+  const wrap=$('mountain-wrap');
+  wrap.classList.remove('shake'); void wrap.offsetWidth; wrap.classList.add('shake');
+  const rock=document.createElement('div');
+  rock.className='rock'; rock.textContent='🪨';
+  rock.style.left=(30+rnd(0,40))+'%';
+  wrap.appendChild(rock);
+  setTimeout(()=>rock.remove(),1200);
+  const pop=$('penalty-pop');
+  pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
+  setTimeout(()=>pop.classList.remove('show'),1400);
+  $('host-status').textContent='🪨 Steinschlag! −15 s – die Frage bleibt offen. Welche stimmt?';
+}
+function onCorrect(i){
+  state.locked=true;
+  const btns=[...document.querySelectorAll('#answers .answer-btn')];
+  if(btns[i]) btns[i].classList.add('correct');
+  state.alt++;
+  $('tb-alt').textContent=state.alt;
+  const dot=$('dot-'+state.alt); if(dot) dot.classList.add('done');
+  sStep(state.alt/state.goal);
+  moveClimber(state.alt,true);
+  fbPub({alt:state.alt});
+  $('host-status').textContent='✔ Richtig! Die Seilschaft klettert …';
+  if(state.alt>=state.goal){
+    setTimeout(victory,1100);
+  } else {
+    setTimeout(()=>{ if(state.phase==='climb') nextQuestion(); },1300);
+  }
+}
+function startTimer(){
+  stopTimer();
+  let lastSec=-1;
+  state.timerId=setInterval(()=>{
+    const left=state.tEnd-Date.now();
+    $('tb-timer').textContent=fmtTime(left);
+    $('tb-timer').classList.toggle('low', left<=20000);
+    const sec=Math.ceil(left/1000);
+    if(sec<=10 && sec>0 && sec!==lastSec){ lastSec=sec; sTick(); }
+    if(left<=0){ stopTimer(); defeat(); }
+  },200);
+}
+function stopTimer(){ if(state.timerId){clearInterval(state.timerId);state.timerId=null;} }
+function victory(){
+  stopTimer();
+  state.phase='end';
+  const rest=fmtTime(state.tEnd-Date.now());
+  fbPub({phase:'end', win:true, alt:state.alt});
+  sFanfare(); burstConfetti(220); burstConfetti(160);
+  $('end-title').textContent='🏔️ GIPFEL ERREICHT!';
+  $('end-who').textContent='Was für eine Seilschaft! Geschafft mit '+rest+' Restzeit.';
+  $('overlay-end').classList.add('active');
+}
+function defeat(){
+  state.phase='end';
+  fbPub({phase:'end', win:false, alt:state.alt});
+  sSad();
+  $('end-title').textContent='🪨 Der Berg gewinnt … diesmal!';
+  $('end-who').textContent='Ihr habt '+state.alt+' von '+state.goal+' Höhenmetern geschafft. Revanche?';
+  $('overlay-end').classList.add('active');
+}
+$('btn-retry').addEventListener('pointerdown',()=>{
+  $('overlay-end').classList.remove('active');
+  state.alt=0;
+  state.tEnd=Date.now()+state.budget*1000;
+  $('tb-alt').textContent='0';
+  renderPath();
+  sWhistle();
+  nextQuestion();
+  startTimer();
+});
+$('btn-end-home').addEventListener('pointerdown',()=>{
+  $('overlay-end').classList.remove('active');
+  hostCleanup(); show('screen-start');
+});
+function hostCleanup(){
+  if(roomRef && isHost){
+    roomRef.child('pads').off(); roomRef.child('ans').off();
+    roomRef.remove(); roomRef=null;
+  }
+  isHost=false;
+  stopTimer();
+}
+
+/* =================== TABLET =================== */
+let padRef=null, padSlot=0, lastV=null, padGen=0;
+$('btn-join').addEventListener('pointerdown',()=>{
+  if(!fbInit()){
+    alert('Gipfelstürmer braucht die Firebase-Konfiguration.\nDie config.js von Klassenquest muss im selben Ordner liegen.');
+    return;
+  }
+  show('screen-join');
+});
+$('btn-join-back').addEventListener('pointerdown',()=>show('screen-start'));
+$('btn-join-go').addEventListener('pointerdown',()=>{
+  const code=$('join-code').value.trim().toUpperCase();
+  if(code.length!==4){ alert('Bitte den 4-Buchstaben-Code von der Tafel eingeben.'); return; }
+  joinRoom(code, null);
+});
+function joinRoom(code, slot){
+  lastJoin={code, slot};
+  const ref=db.ref('fwf/'+code);
+  ref.get().then(s=>{
+    if(!s.exists()){ padFail('Kein Spiel mit diesem Code gefunden. Läuft an der Tafel die Tablet-Lobby?'); return; }
+    const v=s.val()||{};
+    padSlot = slot!==null ? slot : ((v.pads&&v.pads[0]) ? 1 : 0);
+    padRef=ref;
+    padRef.child('pads/'+padSlot).set(true);
+    padRef.child('pads/'+padSlot).onDisconnect().remove();
+    padRef.on('value',s2=>{ lastV=s2.val(); padGen++; renderPad(lastV); });
+    $('btn-pad-retry').style.display='none';
+    show('screen-pad');
+    reqWakeLock();
+  }).catch(err=>padFail('Verbindung fehlgeschlagen: '+fbErrText(err)));
+}
+function padFail(msg){
+  if(!PAD_ONLY){ alert(msg); return; }
+  show('screen-pad');
+  $('pad-status').textContent=msg;
+  $('pad-qcard').style.display='none';
+  $('pad-answers').innerHTML='';
+  $('btn-pad-retry').style.display='inline-flex';
+}
+$('btn-pad-retry').addEventListener('pointerdown',()=>{
+  $('btn-pad-retry').style.display='none';
+  $('pad-status').textContent='Verbinde …';
+  if(lastJoin) joinRoom(lastJoin.code, lastJoin.slot);
+});
+function padLeave(){
+  if(padRef){ padRef.off(); padRef.child('pads/'+padSlot).remove(); padRef=null; }
+  show('screen-start');
+}
+$('btn-pad-leave').addEventListener('pointerdown',padLeave);
+
+function renderPad(v){
+  const stat=$('pad-status'), qc=$('pad-qcard'), qa=$('pad-answers');
+  if(!v){
+    stat.textContent='Das Spiel an der Tafel wurde beendet. Für ein neues Spiel den neuen QR-Code scannen.';
+    qa.innerHTML=''; qc.style.display='none'; $('pad-alt').textContent='';
+    return;
+  }
+  $('pad-alt').textContent = (v.goal!=null && v.alt!=null) ? '⛰ '+v.alt+' / '+v.goal : '';
+  if(v.phase==='lobby'){
+    stat.textContent='Verbunden ✔ – wartet auf den Aufbruch …';
+    qa.innerHTML=''; qc.style.display='none';
+    return;
+  }
+  if(v.phase==='climb' && v.q){
+    qc.style.display='flex';
+    $('pad-qtext').textContent=v.q.text;
+    stat.textContent='🧗 Beratet euch – dann tippt die Antwort!';
+    const wrong=v.wrong||[];
+    qa.innerHTML='';
+    v.q.options.forEach((opt,i)=>{
+      const b=document.createElement('button');
+      b.className='answer-btn ans-'+i;
+      b.innerHTML='<span class="shape">'+SHAPES[i]+'</span>'+esc(opt);
+      if(wrong.includes(i)){ b.disabled=true; b.classList.add('struck'); }
+      else b.addEventListener('pointerdown',()=>{
+        padRef.child('ans/'+padSlot).set({n:v.q.n, i, ts:firebase.database.ServerValue.TIMESTAMP});
+        [...qa.children].forEach(x=>x.disabled=true);
+        b.style.boxShadow='0 0 0 4px #fff';
+        stat.textContent='Antwort gesendet …';
+        const gen=padGen;
+        setTimeout(()=>{ if(gen===padGen && lastV) renderPad(lastV); },1500);
+      });
+      qa.appendChild(b);
+    });
+    return;
+  }
+  if(v.phase==='end'){
+    qa.innerHTML=''; qc.style.display='none';
+    stat.textContent = v.win
+      ? '🏔️ GIPFEL ERREICHT – ihr seid eine starke Seilschaft!'
+      : '🪨 Der Berg war heute stärker. '+(v.alt||0)+' von '+(v.goal||'?')+' geschafft – Revanche?';
+    return;
+  }
+}
+
+/* =================== EDITOR (gemeinsame Bibliothek) =================== */
+let editIdx=-1;
+function renderSetList(){
+  const list=$('set-list'); list.innerHTML='';
+  if(!customSets.length){
+    list.innerHTML='<p class="hint">Noch keine eigenen Sets. Lege mit „➕ Neues Set anlegen“ dein erstes an.</p>';
+    return;
+  }
+  customSets.forEach((s,i)=>{
+    const row=document.createElement('button');
+    row.className='set-row';
+    row.innerHTML='<span class="set-row-name">'+esc(s.name)+'</span>'
+      +'<span class="set-row-meta">'+(s.items.length<4?'⚠️ ':'')+fmtN(s.items.length)+'  ›</span>';
+    row.addEventListener('pointerdown',()=>openSet(i));
+    list.appendChild(row);
+  });
+}
+$('btn-editor').addEventListener('pointerdown',()=>{ customSets=loadCustom(); renderSetList(); show('screen-editor'); });
+$('btn-editor-back').addEventListener('pointerdown',()=>{ fillSetSelect(); show('screen-start'); });
+$('btn-new-set').addEventListener('pointerdown',()=>{
+  const name=prompt('Name des neuen Sets (z.B. „Unit 4 Vokabeln“):');
+  if(!name) return;
+  customSets.push({name:name.trim(),items:[]});
+  saveCustom(customSets);
+  openSet(customSets.length-1);
+  togglePanel('paste-panel','btn-open-paste');
+});
+function openSet(i){
+  editIdx=i;
+  $('set-name-input').value=customSets[i].name;
+  hidePanels(); renderItems();
+  show('screen-set');
+}
+function hidePanels(){
+  $('paste-panel').style.display='none';
+  $('single-panel').style.display='none';
+  $('btn-open-paste').classList.remove('sel');
+  $('btn-open-single').classList.remove('sel');
+}
+function togglePanel(panelId,btnId){
+  const wasOpen=$(panelId).style.display!=='none';
+  hidePanels();
+  if(!wasOpen){ $(panelId).style.display='flex'; $(btnId).classList.add('sel'); }
+}
+function renderItems(){
+  const s=customSets[editIdx];
+  $('set-count').textContent=fmtN(s.items.length);
+  $('set-warn').style.display = s.items.length<4 ? 'block' : 'none';
+  const list=$('item-list'); list.innerHTML='';
+  if(!s.items.length){ list.innerHTML='<p class="hint">Noch keine Fragen – füge oben welche hinzu.</p>'; return; }
+  s.items.forEach((it,i)=>{
+    const row=document.createElement('div'); row.className='item-row';
+    const qa=document.createElement('div'); qa.className='qa';
+    qa.innerHTML='<b>'+esc(it.q)+'</b><br>'+esc(it.a);
+    const del=document.createElement('button'); del.className='del-btn'; del.textContent='🗑';
+    del.addEventListener('pointerdown',()=>{ s.items.splice(i,1); saveCustom(customSets); renderItems(); });
+    row.appendChild(qa); row.appendChild(del); list.appendChild(row);
+  });
+}
+$('btn-set-back').addEventListener('pointerdown',()=>{ renderSetList(); show('screen-editor'); });
+$('btn-set-done').addEventListener('pointerdown',()=>{
+  fillSetSelect();
+  $('set-select').value='c:'+editIdx;
+  $('set-select').dispatchEvent(new Event('change'));
+  show('screen-start');
+});
+$('set-name-input').addEventListener('change',()=>{
+  const v=$('set-name-input').value.trim();
+  if(v){ customSets[editIdx].name=v; saveCustom(customSets); }
+  else $('set-name-input').value=customSets[editIdx].name;
+});
+$('btn-del-set').addEventListener('pointerdown',()=>{
+  if(!confirm('Set „'+customSets[editIdx].name+'“ wirklich löschen?')) return;
+  customSets.splice(editIdx,1); editIdx=-1; saveCustom(customSets);
+  renderSetList(); show('screen-editor');
+});
+$('btn-open-paste').addEventListener('pointerdown',()=>togglePanel('paste-panel','btn-open-paste'));
+$('btn-open-single').addEventListener('pointerdown',()=>togglePanel('single-panel','btn-open-single'));
+$('btn-add-item').addEventListener('pointerdown',()=>{
+  const q=$('new-q').value.trim(), a=$('new-a').value.trim();
+  if(!q||!a){ alert('Bitte Frage und Antwort ausfüllen.'); return; }
+  customSets[editIdx].items.push({q,a}); saveCustom(customSets);
+  $('new-q').value=''; $('new-a').value=''; $('new-q').focus();
+  renderItems();
+});
+const PASTE_HINT='Pro Zeile: Frage [Tab / ; / „ - “] Antwort';
+function parsePaste(text){
+  const items=[];
+  text.split(/\r?\n/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    let sep=null;
+    if(line.includes('\t')) sep='\t';
+    else if(line.includes(';')) sep=';';
+    else if(line.includes(' - ')) sep=' - ';
+    else if(line.includes('=')) sep='=';
+    if(!sep) return;
+    const i=line.indexOf(sep);
+    const q=line.slice(0,i).trim(), a=line.slice(i+sep.length).trim();
+    if(q&&a) items.push({q,a});
+  });
+  return items;
+}
+$('paste-area').addEventListener('input',()=>{
+  const n=parsePaste($('paste-area').value).length;
+  $('paste-preview').textContent = n ? '✔ '+fmtN(n)+' erkannt' : PASTE_HINT;
+  $('btn-paste-apply').textContent = n ? '➕ '+fmtN(n)+' übernehmen' : 'Übernehmen';
+});
+$('btn-paste-apply').addEventListener('pointerdown',()=>{
+  const items=parsePaste($('paste-area').value);
+  if(!items.length){ alert('Keine Fragen erkannt.\nPro Zeile: Frage und Antwort, getrennt durch Tabulator, Semikolon oder „ - “.'); return; }
+  customSets[editIdx].items.push(...items); saveCustom(customSets);
+  $('paste-area').value=''; $('paste-preview').textContent=PASTE_HINT;
+  $('btn-paste-apply').textContent='Übernehmen';
+  renderItems();
+});
+$('btn-export').addEventListener('pointerdown',()=>{
+  const blob=new Blob([JSON.stringify(customSets,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='fragensets.json'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('btn-import').addEventListener('pointerdown',()=>$('import-file').click());
+$('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const data=JSON.parse(r.result);
+      if(!Array.isArray(data)) throw 0;
+      data.forEach(s=>{ if(s && s.name && Array.isArray(s.items)) customSets.push({name:String(s.name),items:s.items.filter(it=>it.q&&it.a).map(it=>({q:String(it.q),a:String(it.a)}))}); });
+      saveCustom(customSets); renderSetList(); fillSetSelect();
+      alert('Import erfolgreich!');
+    }catch(err){ alert('Datei konnte nicht gelesen werden (kein gültiges JSON-Format).'); }
+  };
+  r.readAsText(f); e.target.value='';
+});
+
+/* =================== INIT =================== */
+fillSetSelect();
+addEventListener('resize',()=>{ if(confettiRunning){ cvs.width=innerWidth; cvs.height=innerHeight; }});
+(function(){
+  const p=new URLSearchParams(location.search);
+  const code=(p.get('join')||'').trim().toUpperCase();
+  if(code.length===4){
+    PAD_ONLY=true;
+    document.body.classList.add('pad-only');
+    show('screen-pad');
+    $('pad-status').textContent='Verbinde …';
+    if(fbInit()) joinRoom(code, p.get('team')==='1' ? 1 : 0);
+    else padFail('Firebase-Konfiguration fehlt (config.js im selben Ordner).');
+  }
+})();
+</script>
+</body>
+</html>
