@@ -3522,7 +3522,7 @@ function renderStudents(){
       ${avatar}
       <div class="stu-info">
         <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
-        <div class="stu-stars">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))}</span>`:''}</div>
+        <div class="stu-stars" onclick="editStars('${s.id}')" style="cursor:pointer" title="Antippen zum direkten Bearbeiten">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))}</span>`:''}</div>
         ${s.monster&&nx?`<div class="mon-prog" title="${nx.have}/${nx.need} bis ${STAGE_NAMES[nx.next]}"><div class="mon-prog-fill" style="width:${prog}%"></div></div>`:''}
         ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
       </div>
@@ -3922,7 +3922,6 @@ function giveStar(id){
 function takeStar(id){
   const s=S.students.find(x=>x.id===id);
   if(!s||(s.stars||0)<=0)return;
-  if(!confirm(`Einen Stern von ${s.name} zurücknehmen? (Nur für Fehleingaben)`))return;
   s.stars=Math.max(0,(s.stars||0)-1);
   saveLocal();
   renderStudents();
@@ -3935,6 +3934,37 @@ function takeStar(id){
       const idx=arr.findIndex(x=>x&&x.id===id);
       if(idx===-1)return current;
       arr[idx].stars=Math.max(0,(arr[idx].stars||0)-1);
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+}
+
+function editStars(id){
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  const raw=prompt(`⭐ Sterne für ${s.name} setzen:`, s.stars||0);
+  if(raw===null)return;
+  const n=parseInt(raw,10);
+  if(isNaN(n)||n<0||n>999){toast('Bitte Zahl zwischen 0 und 999');return}
+  const old=s.stars||0;
+  if(n===old)return;
+  const stageBefore=monsterStage(old);
+  s.stars=n;
+  const stageAfter=monsterStage(n);
+  saveLocal();
+  renderStudents();
+  addLog({type:'stustar',icon:'✏️',text:`Sterne angepasst: ${s.name} ${old} → ${n}`,sub:`von ${U.name}`});
+  if(s.monster && stageAfter>stageBefore){
+    addLog({type:'stustar',icon:'✨',text:`${monsterDisplayName(s)} hat sich entwickelt!`,sub:`${s.name} · ${STAGE_NAMES[stageAfter]}`});
+    showEvolutionBanner(s, stageAfter);
+  }
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===id);
+      if(idx===-1)return current;
+      arr[idx].stars=n;
       return arr;
     }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
