@@ -1,5 +1,5 @@
-const CACHE = 'klassenquest-v4';
-const ASSETS = ['./manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
+const CACHE = 'klassenquest-v5';
+const ASSETS = ['./manifest.json', './monsters.js', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})));
