@@ -893,7 +893,7 @@ body.admin .admin-only{display:block}
 @keyframes crownBob{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
 @media (prefers-reduced-motion: reduce){.mon-champion img,.mon-crown{animation:none}}
 .stu-mon{
-  width:52px;height:52px;flex-shrink:0;cursor:pointer;
+  width:60px;height:60px;flex-shrink:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   background:rgba(255,255,255,.05);border:1.5px solid var(--border-2);
   border-radius:12px;transition:transform .12s;
@@ -910,6 +910,30 @@ body.admin .admin-only{display:block}
 .mon-pick:hover{border-color:var(--gold)}
 .mon-pick.sel{border-color:var(--gold);background:rgba(245,200,66,.12);box-shadow:0 0 12px rgba(245,200,66,.25)}
 .mon-pick-name{font-size:.62rem;font-weight:800;color:var(--text-2);margin-top:3px}
+.mgal-overlay{
+  position:fixed;inset:0;z-index:280;overflow-y:auto;
+  background:radial-gradient(circle at 50% 0%,rgba(60,40,120,.55),rgba(8,5,24,.97));
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  padding:18px 14px 30px;
+}
+.mgal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  max-width:1100px;margin:0 auto 16px}
+.mgal-title{font-family:'Cinzel',serif;font-size:1.2rem;font-weight:800;color:var(--gold);
+  text-shadow:0 0 18px rgba(245,200,66,.5)}
+.mgal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:12px;max-width:1100px;margin:0 auto}
+.mgal-cell{
+  background:rgba(255,255,255,.05);border:1px solid var(--border-2);
+  border-radius:14px;padding:12px 8px 10px;text-align:center;
+}
+.mgal-cell .mon-spr{margin:0 auto}
+.mgal-stu{font-weight:900;font-size:.95rem;color:#fff;margin-top:7px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgal-mon{font-size:.72rem;font-weight:700;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgal-stage{font-size:.66rem;font-weight:800;color:var(--gold);margin-top:2px}
+.mgal-cell .mon-prog{margin:6px auto 0;max-width:110px}
+.mgal-none{opacity:.55}
 .evo-overlay{
   position:fixed;inset:0;z-index:300;
   display:flex;align-items:center;justify-content:center;
@@ -1141,6 +1165,7 @@ body.admin .admin-only{display:block}
       <button class="btn btn-gold btn-xs" id="push-btn-bar" onclick="askPush()">🔔 Push</button>
       <button class="btn btn-ghost btn-xs" onclick="logout()">Abmelden</button>
     </div>
+    <button class="btn btn-ghost btn-block btn-sm" onclick="openMonsterGallery()" style="margin-bottom:11px">🖼️ Monster-Galerie anzeigen</button>
     <div class="add-row hidden" id="stu-add-row">
       <input class="inp" id="stu-inp" placeholder="Nur Vorname (Datenschutz)…" maxlength="30">
       <button class="btn btn-gold btn-sm" onclick="addStu()">+ Neu</button>
@@ -3519,13 +3544,13 @@ function renderStudents(){
     const nx=nextStageInfo(stars);
     const prog=nx?Math.round(100*(nx.have-nx.prev)/(nx.need-nx.prev)):100;
     const avatar=s.monster
-      ?`<div class="stu-mon" onclick="openMonsterPick('${s.id}')" title="${esc(monsterDisplayName(s))} · ${STAGE_NAMES[stage]}">${monsterSVG(s.monster,stage,46)}</div>`
+      ?`<div class="stu-mon" onclick="openMonsterPick('${s.id}')" title="${esc(monsterDisplayName(s))} · ${STAGE_NAMES[stage]}">${monsterSVG(s.monster,stage,54)}</div>`
       :`<div class="stu-av" style="background:${c};border-color:${c}aa;cursor:pointer" onclick="openMonsterPick('${s.id}')" title="Monster wählen">${ini}</div>`;
     return `<div class="stu-card">
       ${avatar}
       <div class="stu-info">
         <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
-        <div class="stu-stars" onclick="editStars('${s.id}')" style="cursor:pointer" title="Antippen zum direkten Bearbeiten">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))}</span>`:''}</div>
+        <div class="stu-stars" onclick="editStars('${s.id}')" style="cursor:pointer" title="Antippen zum direkten Bearbeiten">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))} · ${STAGE_NAMES[stage]}</span>`:''}</div>
         ${s.monster&&nx?`<div class="mon-prog" title="${nx.have}/${nx.need} bis ${STAGE_NAMES[nx.next]}"><div class="mon-prog-fill" style="width:${prog}%"></div></div>`:''}
         ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
       </div>
@@ -3940,6 +3965,43 @@ function takeStar(id){
       return arr;
     }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
   }
+}
+
+function openMonsterGallery(){
+  const old=document.getElementById('mgal-ov'); if(old)old.remove();
+  const students=(S.students||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'de'));
+  const cells=students.map(s=>{
+    const stars=s.stars||0;
+    if(!s.monster){
+      return `<div class="mgal-cell mgal-none">
+        <div style="font-size:3rem;line-height:110px">🥚</div>
+        <div class="mgal-stu">${esc(s.name)}</div>
+        <div class="mgal-mon">noch kein Monster</div>
+      </div>`;
+    }
+    const stage=monsterStage(stars);
+    const nx=nextStageInfo(stars);
+    const prog=nx?Math.round(100*(nx.have-nx.prev)/(nx.need-nx.prev)):100;
+    return `<div class="mgal-cell">
+      ${monsterSVG(s.monster,stage,110)}
+      <div class="mgal-stu">${esc(s.name)}</div>
+      <div class="mgal-mon">${esc(monsterDisplayName(s))} · ⭐ ${stars}</div>
+      <div class="mgal-stage">${STAGE_NAMES[stage]}</div>
+      ${nx?`<div class="mon-prog" title="${nx.have}/${nx.need}"><div class="mon-prog-fill" style="width:${prog}%"></div></div>`:''}
+    </div>`;
+  }).join('');
+  const ov=document.createElement('div');
+  ov.id='mgal-ov'; ov.className='mgal-overlay';
+  ov.innerHTML=`
+    <div class="mgal-head">
+      <div class="mgal-title">🖼️ Unsere Monster</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeMonsterGallery()">✕ Schließen</button>
+    </div>
+    <div class="mgal-grid">${cells||'<div class="empty" style="grid-column:1/-1"><span class="empty-icon">📜</span>Noch keine Schüler angelegt.</div>'}</div>`;
+  document.body.appendChild(ov);
+}
+function closeMonsterGallery(){
+  const ov=document.getElementById('mgal-ov'); if(ov)ov.remove();
 }
 
 function editStars(id){
