@@ -5,6 +5,17 @@
 // Updates der App überschreiben sie nicht.
 // ═══════════════════════════════════════════════════════════════
 
+// ─── 0. DATEN-MODUS ────────────────────────────────────────────
+// 'local'    = Schülerdaten NUR auf dem Gerät (DSGVO-Modus).
+//              Abgleich zwischen Kolleg:innen per Export/Import-Datei
+//              über die Schulcloud (Mehr → Daten & Sicherung).
+// 'firebase' = Live-Sync über Firebase (alter Modus).
+// Die Firebase-Zugangsdaten unten bleiben in BEIDEN Modi nötig,
+// weil die Plenumsspiele (Fußball, Montagsmaler) sie für anonyme
+// Spielrunden mit den Schüler-Tablets verwenden.
+
+window.DATA_MODE = 'local';
+
 // ─── 1. FIREBASE-KONFIGURATION ─────────────────────────────────
 // Aus Firebase Console → Projekteinstellungen → Deine Apps kopieren
 
@@ -24,6 +35,6 @@ window.FIREBASE_CONFIG = {
 // der App unter "Mehr → Passwörter" jederzeit ändern.
 // Bei Reset werden wieder diese Werte aktiv.
 
-window.ADMIN_PW   = 'klasse5a';      // ← Klassenlehrer:innen (Admin-Rechte)
-window.TEACHER_PW = 'lehrer5a';      // ← Fachlehrer:innen (normales Login)
+window.ADMIN_PW   = 'klasse5c';      // ← Klassenlehrer:innen (Admin-Rechte)
+window.TEACHER_PW = 'lehrer5c';      // ← Fachlehrer:innen (normales Login)
 window.DB_PATH = 'klassenquest_kq7Mq3xPnV9bRtZ2';
