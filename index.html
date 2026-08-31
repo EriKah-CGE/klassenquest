@@ -1297,6 +1297,20 @@ body.admin .admin-only{display:block}
     </div>
 
     <div class="sg">
+      <div class="sg-title">Daten & Sicherung</div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Stand exportieren</div><div class="sg-hint">JSON-Datei herunterladen → in die Schulcloud legen</div></div>
+        <button class="btn btn-gold btn-sm" onclick="exportState()">💾 Export</button>
+      </div>
+      <div class="sg-row">
+        <div><div class="sg-lbl">Stand importieren</div><div class="sg-hint">Datei aus der Schulcloud laden – ersetzt den Stand auf diesem Gerät</div></div>
+        <button class="btn btn-blue btn-sm" onclick="importStatePick()">📂 Import</button>
+      </div>
+      <div style="font-size:.68rem;color:var(--text-3);line-height:1.5;margin-top:4px" id="datamode-hint"></div>
+    </div>
+    <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importStateFile(event)">
+
+    <div class="sg">
       <div class="sg-title">Credits</div>
       <div style="font-size:.72rem;color:var(--text-3);line-height:1.5">
         Monster-Sprites aus dem Open-Source-Projekt <b>Tuxemon</b> (tuxemon.org),
@@ -1514,7 +1528,8 @@ const ADMIN_PW = window.ADMIN_PW;
 const TEACHER_PW = window.TEACHER_PW;
 const DB_PATH = window.DB_PATH;
 // Only use Firebase if BOTH databaseURL AND DB_PATH are configured
-const USE_FB = !!FIREBASE_CONFIG.databaseURL && !!DB_PATH;
+const DATA_MODE = window.DATA_MODE || 'firebase';   // 'local' = Datei-Modus (Schulcloud), 'firebase' = Live-Sync
+const USE_FB = DATA_MODE!=='local' && !!FIREBASE_CONFIG.databaseURL && !!DB_PATH;
 
 /* DATA — 6 levels in 2 rows of 3, snake layout */
 // 20 Level – Doppelstundenprinzip: 3-5 Doppelstunden/Tag → max 12-20 Sterne/Tag
@@ -1584,7 +1599,13 @@ let logFilter='all';
 /* FIREBASE */
 let db=null,ref=null,remote=false;
 function initFB(){
-  if(!USE_FB){syncDot('off');loadLocal();return}
+  if(!USE_FB){
+    syncDot('off');
+    loadLocal();
+    const l=document.getElementById('sync-lbl');
+    if(l)l.textContent=DATA_MODE==='local'?'Lokaler Modus · Sicherung über Schulcloud-Datei':'Lokaler Modus';
+    return;
+  }
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
     db=firebase.database();
@@ -1709,7 +1730,7 @@ function push(){
   }
 }
 function syncDot(s){const e=document.getElementById('sync-dot');if(e)e.className='sync '+s}
-function saveLocal(){try{localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
+function saveLocal(){try{S.lastChange=Date.now();localStorage.setItem('kq_v7',JSON.stringify(S));}catch(e){}}
 function loadLocal(){
   try{const s=localStorage.getItem('kq_v7');if(s)Object.assign(S,JSON.parse(s));}catch(e){}
   fixState();  try{checkDateRollover();}catch(e){}
@@ -2061,13 +2082,7 @@ const REWARD_GAMES=[
    url:'montagsmaler.html'},
   {id:'fussball',em:'⚽',name:'Fachwort-Fußball',
    desc:'Quiz-Duell am Touchboard: richtige Antwort = Ball nach vorn. Vokabeln, Kopfrechnen, Fachbegriffe oder eigene Fragesets.',
-   url:'fachwort-fussball.html'},
-  {id:'maler',em:'🎨',name:'Montagsmaler',
-   desc:'Ein Tablet zeichnet, der große Bildschirm zeigt es live, die Klasse rät. Teams im Wechsel, Begriffe aus den Fragesets oder der Wörterliste.',
-   url:'montagsmaler.html'},
-  {id:'gipfel',em:'🏔️',name:'Gipfelstürmer',
-   desc:'Die ganze Klasse als Seilschaft gegen den Berg: richtige Antworten klettern, Fehler kosten Zeit. Gemeinsam vor Ablauf zum Gipfel!',
-   url:'gipfelstuermer.html'}
+   url:'fachwort-fussball.html'}
 ];
 function ensureGames(){
   if(!S.games)S.games={};
@@ -4100,6 +4115,63 @@ function assignReward(id){
 }
 
 /* LOG */
+/* ===== DATEI-SICHERUNG (Schulcloud-Workflow) ===== */
+function exportState(){
+  try{
+    const payload={app:'klassenquest',version:1,
+      exportedAt:new Date().toISOString(),
+      exportedBy:U.name||'',
+      state:S};
+    const blob=new Blob([JSON.stringify(payload,null,1)],{type:'application/json'});
+    const d=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const fname=`klassenquest-stand-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}.json`;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=fname;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},400);
+    addLog({type:'day',icon:'💾',text:'Stand exportiert',sub:`von ${U.name}`});
+    toast('💾 Datei gespeichert – jetzt in die Schulcloud hochladen');
+  }catch(e){console.warn('export:',e);toast('Export fehlgeschlagen');}
+}
+
+function importStatePick(){
+  const inp=document.getElementById('import-file');
+  if(inp){inp.value='';inp.click();}
+}
+
+function importStateFile(ev){
+  const file=ev.target.files && ev.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      const st=data && data.app==='klassenquest' && data.state ? data.state : data;
+      if(!st || typeof st!=='object' || (!Array.isArray(st.students) && typeof st.totalStars!=='number')){
+        toast('Keine gültige Klassenquest-Datei');return;
+      }
+      const when=data.exportedAt?new Date(data.exportedAt).toLocaleString('de-DE'):'unbekannt';
+      const who=data.exportedBy||'unbekannt';
+      const nStu=Array.isArray(st.students)?st.students.length:0;
+      let msg=`Diesen Stand laden?\n\nExportiert: ${when}\nVon: ${who}\nSchüler: ${nStu} · Sterne: ${st.totalStars||0} · Level: ${st.currentLevel||1}\n\nDer aktuelle Stand auf DIESEM Gerät wird ersetzt!`;
+      if(S.lastChange && st.lastChange && S.lastChange>st.lastChange){
+        msg='⚠️ ACHTUNG: Dein lokaler Stand ist NEUER als die Datei!\n\n'+msg;
+      }
+      if(!confirm(msg))return;
+      Object.keys(S).forEach(k=>{delete S[k];});
+      Object.assign(S,st);
+      fixState();
+      saveLocal();
+      renderAll();renderStudents();
+      addLog({type:'day',icon:'📂',text:'Stand importiert',sub:`Export von ${who}, ${when} · geladen von ${U.name}`});
+      toast('📂 Stand geladen');
+    }catch(e){console.warn('import:',e);toast('Datei konnte nicht gelesen werden');}
+  };
+  reader.readAsText(file);
+}
+
 function addLog(e){
   try{
     const entry={id:'l'+Date.now()+Math.random().toString(16).slice(2,5),time:Date.now(),day:S.currentDay,user:U.name,...e};
@@ -4195,6 +4267,12 @@ function toast(msg){
 function esc(s){if(!s)return'';return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 /* INIT */
+setTimeout(()=>{
+  const h=document.getElementById('datamode-hint');
+  if(h)h.textContent=DATA_MODE==='local'
+    ?'Modus: LOKAL – Schülerdaten bleiben auf dem Gerät. Zum Abgleich mit Kolleg:innen: Export → Schulcloud → dort Import. Die Plenumsspiele nutzen Firebase nur für anonyme Spielrunden.'
+    :'Modus: FIREBASE – Live-Sync aktiv. Umstellung auf lokalen Datei-Modus: in config.js  window.DATA_MODE=\'local\'  setzen.';
+},600);
 fixState();
 if(!tryAuto()){/* show login */}
 if('serviceWorker' in navigator && !isPreview){
