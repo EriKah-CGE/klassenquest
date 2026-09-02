@@ -263,11 +263,15 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation:none !important;transition:none !important;}
   }
+
+  /* Touch-Härtung: keine Long-Press-Menüs/Textauswahl auf Touchgeräten */
+  button,.icon-btn,.big-btn,.ghost-btn,canvas{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 </style>
 </head>
 <body>
 
 <div class="icon-btns">
+  <button class="icon-btn" id="btn-exit-app" title="Zurück zu Klassenquest">‹🏰</button>
   <button class="icon-btn" id="btn-sound" title="Ton an/aus">🔊</button>
   <button class="icon-btn" id="btn-fullscreen" title="Vollbild">⛶</button>
   <button class="icon-btn" id="btn-home" title="Zum Startbildschirm" style="display:none">🏠</button>
@@ -1104,7 +1108,7 @@ function canvasPos(e){
 padCanvas.addEventListener('pointerdown',e=>{
   if(!padDrawEnabled||!padRef) return;
   e.preventDefault();
-  padCanvas.setPointerCapture(e.pointerId);
+  try{padCanvas.setPointerCapture(e.pointerId);}catch(err){}
   const [x,y]=canvasPos(e);
   curStroke={c:eraser?PAPER:toolColor, w:eraser?44:toolWidth, p:[x,y]};
   curRef=padRef.child('strokes').push();
@@ -1324,6 +1328,19 @@ addEventListener('resize',()=>{ if(confettiRunning){ cvs.width=innerWidth; cvs.h
     if(fbInit()) joinRoom(code, p.get('team')==='1' ? 1 : 0);
     else padFail('Firebase-Konfiguration fehlt (config.js im selben Ordner).');
   }
+})();
+
+/* Zurück zur Klassenquest-App (PWA-Standalone hat keine Browser-Leiste) */
+(function(){
+  var b=document.getElementById('btn-exit-app');
+  if(!b)return;
+  b.addEventListener('pointerdown',function(ev){
+    ev.preventDefault();
+    var gameScreen=document.querySelector('.screen.active');
+    var inGame=gameScreen && gameScreen.id!=='screen-start';
+    if(inGame && !confirm('Spiel verlassen und zurück zu Klassenquest?'))return;
+    location.href='index.html';
+  });
 })();
 </script>
 </body>
