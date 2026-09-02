@@ -1280,6 +1280,10 @@ body.admin .admin-only{display:block}
         <button class="btn btn-ghost btn-sm" onclick="toggleLessonMode()" id="lesson-mode-btn">Wechseln</button>
       </div>
       <div class="sg-row">
+        <div><div class="sg-lbl">Stunde automatisch (Uhrzeit)</div><div class="sg-hint">Erkennt die Schulstunde am CGE-Raster (8:00–16:15)</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleLessonAuto()" id="lesson-auto-btn">An</button>
+      </div>
+      <div class="sg-row">
         <div><div class="sg-lbl">Manuelle Stunde</div><div class="sg-hint" id="manual-lesson-hint">Aktuell: 1./2.</div></div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-xs" onclick="prevLesson()">←</button>
@@ -1626,7 +1630,7 @@ function initFB(){
         // MERGE specific fields from Firebase, don't delete whole state
         // students and log have their own listeners
         const fieldsToMerge=['totalStars','currentLevel','currentDay','currentLesson',
-                             'dayDate','lessonMode','completedLevels','checkedCriteria',
+                             'dayDate','lessonMode','lessonAuto','completedLevels','checkedCriteria',
                              'rewards','dayRewards','bossProgress','defeatedBosses',
                              'activeBossDay','customCriteria','passwords',
                              'availableTraits','schedule'];
@@ -1708,6 +1712,7 @@ function push(){
       currentLesson:S.currentLesson||1,
       dayDate:S.dayDate||localDateISO(),
       lessonMode:S.lessonMode||'double',
+      lessonAuto:S.lessonAuto!==false,
       completedLevels:Array.isArray(S.completedLevels)?S.completedLevels:[],
       checkedCriteria:S.checkedCriteria||{},
       rewards:Array.isArray(S.rewards)?S.rewards:[],
@@ -2080,6 +2085,9 @@ const REWARD_GAMES=[
   {id:'montagsmaler',em:'🎨',name:'Montagsmaler',
    desc:'Team Blau gegen Team Rot: zeichnen, rufen, raten – so viele Begriffe wie möglich pro Runde. Eigene Begriffssets möglich.',
    url:'montagsmaler.html'},
+  {id:'gipfel',em:'🏔️',name:'Gipfelstürmer',
+   desc:'Die ganze Klasse als Seilschaft: richtig antworten, klettern, den Gipfel vor Ablauf der Zeit erreichen. Falsche Antworten lösen Steinschlag aus.',
+   url:'gipfelstuermer.html'},
   {id:'fussball',em:'⚽',name:'Fachwort-Fußball',
    desc:'Quiz-Duell am Touchboard: richtige Antwort = Ball nach vorn. Vokabeln, Kopfrechnen, Fachbegriffe oder eigene Fragesets.',
    url:'fachwort-fussball.html'}
@@ -2163,7 +2171,12 @@ function renderAll(){
   if(db){const t=new Date();db.textContent=t.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'});}
   const lb=document.getElementById('lesson-label-big');
   if(lb){
-    let txt=lessonTypeLabel()+' '+lessonLabel();
+    let txt;
+    if(lessonAutoOn()){
+      txt=periodHeaderText();
+    } else {
+      txt=lessonTypeLabel()+' '+lessonLabel();
+    }
     try{
       const cur=getCurrentLessonInfo();
       if(cur) txt += ` · ${cur.subj}`;
@@ -2171,6 +2184,7 @@ function renderAll(){
     lb.textContent=txt;
   }
   try{updateLessonModeUI();}catch(e){}
+  try{const b=document.getElementById('lesson-auto-btn'); if(b)b.textContent=lessonAutoOn()?'An':'Aus';}catch(e){}
   try{renderMap();}catch(e){console.warn('renderMap failed:',e)}
   try{renderCurInfo();}catch(e){console.warn('renderCurInfo failed:',e)}
   try{renderDayTracker();}catch(e){console.warn('renderDayTracker failed:',e)}
@@ -2548,6 +2562,84 @@ function rewardStrip(text){
 function lessonKey(){
   return 'd'+S.currentDay+'l'+S.currentLesson;
 }
+/* ===== SCHULSTUNDEN-RASTER (CGE, aus WebUntis) =====
+   Bei Rasteränderung der Schule hier anpassen. */
+const SCHOOL_PERIODS=[
+  {n:1, start:'08:00', end:'08:45'},
+  {n:2, start:'08:45', end:'09:30'},
+  {n:3, start:'09:50', end:'10:35'},
+  {n:4, start:'10:35', end:'11:20'},
+  {n:5, start:'11:40', end:'12:25'},
+  {n:6, start:'12:25', end:'13:10'},
+  {n:7, start:'13:10', end:'13:55'},
+  {n:8, start:'13:55', end:'14:40'},
+  {n:9, start:'14:40', end:'15:25'},
+  {n:10,start:'15:30', end:'16:15'},
+];
+
+function getCurrentPeriod(now){
+  // now: minutes since midnight (optional)
+  const t=(now!=null)?now:(new Date().getHours()*60+new Date().getMinutes());
+  const first=timeToMinutes(SCHOOL_PERIODS[0].start);
+  const last=timeToMinutes(SCHOOL_PERIODS[SCHOOL_PERIODS.length-1].end);
+  if(t<first) return {phase:'before', next:SCHOOL_PERIODS[0]};
+  if(t>=last) return {phase:'after'};
+  for(let i=0;i<SCHOOL_PERIODS.length;i++){
+    const p=SCHOOL_PERIODS[i];
+    const s=timeToMinutes(p.start), e=timeToMinutes(p.end);
+    if(t>=s && t<e) return {phase:'lesson', p, n:p.n};
+    if(t<s) return {phase:'break', next:p};
+  }
+  return {phase:'after'};
+}
+
+function periodToBlock(n){
+  // map period number to the app's lesson counter
+  return (S.lessonMode||'double')==='double' ? Math.ceil(n/2) : n;
+}
+
+function lessonAutoOn(){ return S.lessonAuto!==false; } // default: an
+
+function autoLessonSync(){
+  // Sets S.currentLesson from the clock (weekdays only, if enabled)
+  if(!lessonAutoOn() || remote) return;
+  const wd=new Date().getDay();
+  if(wd===0||wd===6) return;
+  const cur=getCurrentPeriod();
+  let n=null;
+  if(cur.phase==='lesson') n=cur.n;
+  else if(cur.phase==='break' && cur.next) n=cur.next.n; // Pause: nächste Stunde vorbereiten
+  else if(cur.phase==='before' && cur.next) n=cur.next.n;
+  if(n==null) return;
+  const block=periodToBlock(n);
+  if(S.currentLesson!==block){
+    S.currentLesson=block;
+    push();
+    renderAll();
+  }
+}
+
+function periodHeaderText(){
+  // Text for the game header, e.g. "3./4. Stunde · 09:50–11:20"
+  const cur=getCurrentPeriod();
+  const dbl=(S.lessonMode||'double')==='double';
+  const blockRange=(n)=>{
+    if(!dbl){ const p=SCHOOL_PERIODS.find(x=>x.n===n); return p?`${p.start}–${p.end}`:''; }
+    const a=SCHOOL_PERIODS.find(x=>x.n===(Math.ceil(n/2)*2-1));
+    const b=SCHOOL_PERIODS.find(x=>x.n===Math.ceil(n/2)*2);
+    return (a&&b)?`${a.start}–${b.end}`:(a?`${a.start}–${a.end}`:'');
+  };
+  const blockLbl=(n)=>{
+    if(!dbl) return n+'. Stunde';
+    const k=Math.ceil(n/2);
+    return (k*2-1)+'./' + (k*2)+'. Stunde';
+  };
+  if(cur.phase==='lesson') return `${blockLbl(cur.n)} · ${blockRange(cur.n)}`;
+  if(cur.phase==='break' && cur.next) return `Pause · gleich ${blockLbl(cur.next.n)}`;
+  if(cur.phase==='before' && cur.next) return `Vor dem Unterricht · um ${cur.next.start} geht's los`;
+  return 'Unterricht beendet ✓';
+}
+
 function lessonLabel(n){
   // n = lesson number (1, 2, 3...)
   // double mode: 1 -> "1./2.", 2 -> "3./4.", 3 -> "5./6."
@@ -2715,8 +2807,8 @@ function finishLesson(){
       delete S.checkedCriteria[lk];
     }
 
-    // Advance lesson
-    S.currentLesson++;
+    // Advance lesson (nur im manuellen Modus – sonst steuert die Uhr)
+    if(!lessonAutoOn()) S.currentLesson++;
     const newLessonLabel=lessonLabel(S.currentLesson);
 
     // Write to Firebase BEFORE re-enabling listener and BEFORE logging
@@ -3315,8 +3407,20 @@ function toggleLessonMode(){
   toast(`✓ Modus: ${newMode==='double'?'Doppelstunden':'Einzelstunden'}`);
 }
 
+function toggleLessonAuto(){
+  if(U.role!=='admin'){toast('Nur Admin');return}
+  S.lessonAuto=!lessonAutoOn();
+  push();
+  const b=document.getElementById('lesson-auto-btn');
+  if(b)b.textContent=lessonAutoOn()?'An':'Aus';
+  if(lessonAutoOn())autoLessonSync();
+  renderAll();
+  toast(lessonAutoOn()?'✓ Stunde folgt der Uhrzeit':'Manuelle Steuerung aktiv');
+}
+
 function nextLessonManual(){
   if(U.role!=='admin'){toast('Nur Admin');return}
+  if(lessonAutoOn()){toast('Automatik aktiv – erst in Mehr → Tag & Spiel abschalten');return}
   S.currentLesson++;
   push();
   renderAll();
@@ -3326,6 +3430,7 @@ function nextLessonManual(){
 
 function prevLesson(){
   if(U.role!=='admin'){toast('Nur Admin');return}
+  if(lessonAutoOn()){toast('Automatik aktiv – erst in Mehr → Tag & Spiel abschalten');return}
   if(S.currentLesson<=1){toast('Bereits bei der ersten Stunde');return}
   S.currentLesson--;
   push();
@@ -3570,7 +3675,7 @@ function renderStudents(){
     return `<div class="stu-card">
       ${avatar}
       <div class="stu-info">
-        <div class="stu-name">${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
+        <div class="stu-name"${U.role==='admin'?` onclick="renameStu('${s.id}')" style="cursor:pointer" title="Antippen zum Umbenennen"`:''}>${esc(s.name)}${countStuNotes(s)>0?` <span style="font-size:.65rem;color:var(--text-3);font-weight:700">📝 ${countStuNotes(s)}</span>`:''}</div>
         <div class="stu-stars" onclick="editStars('${s.id}')" style="cursor:pointer" title="Antippen zum direkten Bearbeiten">⭐ <span class="stu-stars-num">${stars}</span>${s.monster?` <span style="font-size:.62rem;font-weight:700;color:var(--text-3)">· ${esc(monsterDisplayName(s))} · ${STAGE_NAMES[stage]}</span>`:''}</div>
         ${s.monster&&nx?`<div class="mon-prog" title="${nx.have}/${nx.need} bis ${STAGE_NAMES[nx.next]}"><div class="mon-prog-fill" style="width:${prog}%"></div></div>`:''}
         ${traitBadges?`<div style="margin-top:3px;line-height:1.5">${traitBadges}</div>`:''}
@@ -4025,6 +4130,33 @@ function closeMonsterGallery(){
   const ov=document.getElementById('mgal-ov'); if(ov)ov.remove();
 }
 
+function renameStu(id){
+  if(U.role!=='admin'){return}
+  const s=S.students.find(x=>x.id===id);
+  if(!s)return;
+  const raw=prompt('Name ändern (nur Vorname, Datenschutz):', s.name||'');
+  if(raw===null)return;
+  const name=raw.trim().slice(0,30);
+  if(!name){toast('Name darf nicht leer sein');return}
+  if(name===s.name)return;
+  const old=s.name;
+  s.name=name;
+  saveLocal();
+  renderStudents();
+  addLog({type:'day',icon:'✏️',text:`Umbenannt: ${old} → ${name}`,sub:`von ${U.name}`});
+  if(ref){
+    syncDot('spin');
+    ref.child('students').transaction(current=>{
+      const arr=Array.isArray(current)?current:(current?Object.values(current):[]);
+      const idx=arr.findIndex(x=>x&&x.id===id);
+      if(idx===-1)return current;
+      arr[idx].name=name;
+      return arr;
+    }).then(()=>syncDot('on')).catch(()=>syncDot('off'));
+  }
+  toast('✓ Umbenannt');
+}
+
 function editStars(id){
   const s=S.students.find(x=>x.id===id);
   if(!s)return;
@@ -4267,6 +4399,22 @@ function toast(msg){
 function esc(s){if(!s)return'';return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
 /* INIT */
+setInterval(()=>{
+  try{
+    autoLessonSync();
+    if(lessonAutoOn()){
+      const lb=document.getElementById('lesson-label-big');
+      if(lb){
+        let txt=periodHeaderText();
+        try{const cur=getCurrentLessonInfo(); if(cur) txt+=` · ${cur.subj}`;}catch(e){}
+        lb.textContent=txt;
+      }
+    }
+    const pg=document.getElementById('pg-schedule');
+    if(pg && pg.classList.contains('on')) renderSchedule();
+  }catch(e){}
+},30000);
+
 setTimeout(()=>{
   const h=document.getElementById('datamode-hint');
   if(h)h.textContent=DATA_MODE==='local'
@@ -4274,6 +4422,7 @@ setTimeout(()=>{
     :'Modus: FIREBASE – Live-Sync aktiv. Umstellung auf lokalen Datei-Modus: in config.js  window.DATA_MODE=\'local\'  setzen.';
 },600);
 fixState();
+setTimeout(()=>{try{autoLessonSync();}catch(e){}},900);
 if(!tryAuto()){/* show login */}
 if('serviceWorker' in navigator && !isPreview){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e)));
